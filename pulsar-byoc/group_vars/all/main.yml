@@ -32,3 +32,9 @@ pulsar_summary_file: "{{ pulsar_server_dir }}/byoc-connection.yml"
 # Limits offered to Galaxy: the largest worker, 90% of its memory
 pulsar_max_cores: "{{ groups['workers'] | map('extract', hostvars, 'ansible_processor_vcpus') | max }}"
 pulsar_max_mem_gb: "{{ ((groups['workers'] | map('extract', hostvars, 'ansible_memtotal_mb') | max) * 0.9 / 1024) | int }}"
+
+# Parts the playbook installs. Turn them off on a cluster that already has them
+# (for example a SimpleVM cluster with SLURM); the playbook then checks them instead.
+pulsar_install_shared_dir: true
+pulsar_install_scheduler: true
+pulsar_install_worker_software: true

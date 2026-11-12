@@ -46,6 +46,8 @@
 - name: Common setup
   hosts: pulsar:workers
   become: true
+  # a host that fails a check stops the whole run
+  any_errors_fatal: true
   tasks:
     # Large uploads to Galaxy stall when a path drops ICMP "fragmentation needed"
     # (seen from SURF Research Cloud, MTU 8950, to test.usegalaxy.be)
@@ -55,21 +57,46 @@
         value: "1"
         sysctl_file: /etc/sysctl.d/90-pulsar-byoc.conf
 
-    - name: Create the Pulsar group
-      ansible.builtin.group:
-        name: "{{ pulsar_user_name }}"
-        gid: "{{ pulsar_user_uid }}"
-        system: true
+    - name: Create the Pulsar user
+      when: pulsar_install_scheduler | bool or inventory_hostname in groups['pulsar']
+      block:
+        - name: Create the Pulsar group
+          ansible.builtin.group:
+            name: "{{ pulsar_user_name }}"
+            gid: "{{ pulsar_user_uid }}"
+            system: true
 
-    - name: Create the Pulsar user with the same uid on every host
-      ansible.builtin.user:
-        name: "{{ pulsar_user_name }}"
-        uid: "{{ pulsar_user_uid }}"
-        group: "{{ pulsar_user_name }}"
-        home: "{{ pulsar_server_dir }}"
-        create_home: false
-        system: true
-        shell: /bin/bash
+        - name: Create the Pulsar user with the same uid on every host
+          ansible.builtin.user:
+            name: "{{ pulsar_user_name }}"
+            uid: "{{ pulsar_user_uid }}"
+            group: "{{ pulsar_user_name }}"
+            home: "{{ pulsar_server_dir }}"
+            create_home: false
+            system: true
+            shell: /bin/bash
+
+    # On an existing cluster the provider creates the job user on the workers
+    - name: Check the Pulsar user on an existing cluster's workers
+      when:
+        - not pulsar_install_scheduler | bool
+        - inventory_hostname not in groups['pulsar']
+      block:
+        - name: Look up the Pulsar user
+          ansible.builtin.command: id -u {{ pulsar_user_name }}
+          register: _pulsar_uid
+          changed_when: false
+          failed_when: false
+
+        - name: Require the Pulsar user with the same uid
+          ansible.builtin.assert:
+            that: _pulsar_uid.rc == 0 and _pulsar_uid.stdout | int == pulsar_user_uid | int
+            fail_msg: >-
+              Jobs run as {{ pulsar_user_name }} (uid {{ pulsar_user_uid }}) on the workers.
+              Create that user on {{ inventory_hostname }}
+              ({{ 'it does not exist' if _pulsar_uid.rc != 0 else 'it has uid ' ~ _pulsar_uid.stdout }}),
+              or set pulsar_user_uid to the uid the cluster uses.
+            quiet: true
 
     - name: Create a munge key for SLURM # noqa: run-once[task]
       ansible.builtin.command:
@@ -78,12 +105,12 @@
       delegate_to: localhost
       become: false
       run_once: true
-      when: pulsar_scheduler == 'slurm'
+      when: pulsar_scheduler == 'slurm' and pulsar_install_scheduler | bool
 
 - name: Shared directory on the Pulsar host
   hosts: pulsar
   become: true
-  pre_tasks:
+  tasks:
     - name: Create the shared directory
       ansible.builtin.file:
         path: "{{ pulsar_shared_dir }}"
@@ -91,59 +118,146 @@
         owner: "{{ pulsar_user_name }}"
         group: "{{ pulsar_user_name }}"
         mode: "0755"
-  roles:
-    - geerlingguy.nfs
+      when: pulsar_install_shared_dir | bool
+
+    - name: Export the shared directory over NFS
+      ansible.builtin.include_role:
+        name: geerlingguy.nfs
+      when: pulsar_install_shared_dir | bool
+
+    # On an existing cluster: write a marker the workers must see
+    - name: Mark the existing shared directory
+      ansible.builtin.copy:
+        content: "{{ inventory_hostname }}\n"
+        dest: "{{ pulsar_shared_dir }}/.pulsar-byoc-shared-check"
+        owner: "{{ pulsar_user_name }}"
+        mode: "0644"
+      when: not pulsar_install_shared_dir | bool
 
 - name: Mount the shared directory on the workers
   hosts: workers:!pulsar
   become: true
+  # a host that fails a check stops the whole run
+  any_errors_fatal: true
   tasks:
-    - name: Install the NFS client
-      ansible.builtin.package:
-        name: "{{ 'nfs-common' if ansible_os_family == 'Debian' else 'nfs-utils' }}"
-        state: present
+    - name: Mount the shared directory over NFS
+      when: pulsar_install_shared_dir | bool
+      block:
+        - name: Install the NFS client
+          ansible.builtin.package:
+            name: "{{ 'nfs-common' if ansible_os_family == 'Debian' else 'nfs-utils' }}"
+            state: present
 
-    - name: Mount the shared directory
-      ansible.posix.mount:
-        src: "{{ hostvars[groups['pulsar'][0]].ansible_default_ipv4.address }}:{{ pulsar_shared_dir }}"
-        path: "{{ pulsar_shared_dir }}"
-        fstype: nfs
-        opts: rw,hard,_netdev
-        state: mounted
+        - name: Mount the shared directory
+          ansible.posix.mount:
+            src: "{{ hostvars[groups['pulsar'][0]].ansible_default_ipv4.address }}:{{ pulsar_shared_dir }}"
+            path: "{{ pulsar_shared_dir }}"
+            fstype: nfs
+            opts: rw,hard,_netdev
+            state: mounted
+
+    - name: Check that the workers see the existing shared directory
+      when: not pulsar_install_shared_dir | bool
+      block:
+        - name: Read the marker the Pulsar host wrote
+          ansible.builtin.slurp:
+            src: "{{ pulsar_shared_dir }}/.pulsar-byoc-shared-check"
+          register: _shared_check
+          failed_when: false
+
+        - name: Require the shared directory on the workers
+          ansible.builtin.assert:
+            that: (_shared_check.content | default('') | b64decode | trim) == groups['pulsar'][0]
+            fail_msg: >-
+              {{ pulsar_shared_dir }} on {{ inventory_hostname }} is not the directory the Pulsar host
+              writes to. Pulsar stages jobs there, so it must be shared between the Pulsar host and
+              every worker. Set pulsar_shared_dir to such a directory.
+            quiet: true
 
 - name: Job scheduler
   hosts: pulsar:workers
   become: true
+  # a host that fails a check stops the whole run
+  any_errors_fatal: true
   tasks:
     - name: Install SLURM
       ansible.builtin.include_role:
         name: galaxyproject.slurm
-      when: pulsar_scheduler == 'slurm'
+      when: pulsar_scheduler == 'slurm' and pulsar_install_scheduler | bool
 
     - name: Install HTCondor
       ansible.builtin.include_role:
         name: grycap.htcondor
-      when: pulsar_scheduler == 'htcondor'
+      when: pulsar_scheduler == 'htcondor' and pulsar_install_scheduler | bool
+
+    - name: Check that the Pulsar host can use the existing scheduler
+      when:
+        - not pulsar_install_scheduler | bool
+        - inventory_hostname in groups['pulsar']
+      block:
+        - name: Ask the existing scheduler for its nodes
+          ansible.builtin.command: "{{ 'sinfo --noheader' if pulsar_scheduler == 'slurm' else 'condor_status -total' }}"
+          register: _scheduler_check
+          changed_when: false
+          failed_when: false
+
+        - name: Require a working scheduler on the Pulsar host
+          ansible.builtin.assert:
+            that: _scheduler_check.rc == 0
+            fail_msg: >-
+              {{ 'sinfo' if pulsar_scheduler == 'slurm' else 'condor_status' }} does not work on
+              {{ inventory_hostname }}, so Pulsar cannot submit jobs there. The Pulsar host must be a
+              submit host of the existing {{ pulsar_scheduler }} cluster.
+              ({{ ((_scheduler_check.stderr | default('', true)) or (_scheduler_check.msg | default(''))) | trim }})
+            quiet: true
 
 - name: Software for jobs on the workers
   hosts: workers
   become: true
+  # a host that fails a check stops the whole run
+  any_errors_fatal: true
   tasks:
     - name: Mount the Galaxy CVMFS repositories
       ansible.builtin.include_role:
         name: galaxyproject.cvmfs
-      when: pulsar_cvmfs | bool
+      when: pulsar_cvmfs | bool and pulsar_install_worker_software | bool
 
     - name: Install Apptainer
       ansible.builtin.include_role:
         name: usegalaxy_eu.apptainer
+      when: pulsar_install_worker_software | bool
+
+    - name: Check the existing container runtime and CVMFS on the workers
+      when: not pulsar_install_worker_software | bool
+      block:
+        - name: Look for Apptainer and CVMFS
+          ansible.builtin.shell: >-
+            set -o pipefail;
+            echo "runtime=$(command -v apptainer || command -v singularity || echo none)";
+            echo "cvmfs=$(test -d /cvmfs/data.galaxyproject.org/ && echo yes || echo no)"
+          args:
+            executable: /bin/bash
+          register: _worker_software
+          changed_when: false
+
+        - name: Require a container runtime (and CVMFS) on the workers
+          ansible.builtin.assert:
+            that:
+              - "'runtime=none' not in _worker_software.stdout"
+              - not pulsar_cvmfs | bool or 'cvmfs=yes' in _worker_software.stdout
+            fail_msg: >-
+              {{ inventory_hostname }} needs apptainer or singularity for tools in containers
+              {{- ' and /cvmfs/data.galaxyproject.org for reference data' if pulsar_cvmfs | bool else '' }}
+              ({{ _worker_software.stdout_lines | join(', ') }}). Install them, or set pulsar_cvmfs: false
+              if the cluster has no CVMFS.
+            quiet: true
 
     - name: Make CVMFS visible in every container
       ansible.builtin.lineinfile:
         path: /etc/apptainer/apptainer.conf
         line: bind path = /cvmfs
         insertafter: '^#?\s*bind path'
-      when: pulsar_cvmfs | bool
+      when: pulsar_cvmfs | bool and pulsar_install_worker_software | bool
 
 - name: Pulsar
   hosts: pulsar
