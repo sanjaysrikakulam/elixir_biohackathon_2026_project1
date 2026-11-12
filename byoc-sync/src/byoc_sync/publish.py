@@ -31,7 +31,7 @@ from .github import GitHub, PullRequest
 from .gitops import GitError, Workspace
 from .naming import SINGLE_BRANCH, Names
 from .planner import Materialized, Repo, RunPlan, UserPlan, materialize
-from .vault import VaultFile
+from .vault import open_vault
 
 FINGERPRINT_PREFIX = "<!-- byoc-sync fingerprint: "
 MAX_BODY = 60000  # GitHub refuses pull request bodies over 65536 characters
@@ -156,7 +156,7 @@ class Publisher:
     def _materialize(self, users: list[UserPlan]) -> Materialized:
         self.ws.reset()
         repo = Repo(self.ws.path, self.site)
-        vault = VaultFile(self.ws.path / self.site.vault_file, self.vault_password)
+        vault = open_vault(self.ws.path / self.site.vault_file, self.vault_password, self.site)
         return materialize(users, repo, vault)
 
     def _same_as_remote(self, remote_sha: str, result: Materialized) -> bool:
@@ -182,7 +182,7 @@ class Publisher:
             path = self.ws.path / ".byoc-sync-remote-vault"
             try:
                 path.write_bytes(self.ws.show(remote_sha, self.site.vault_file) or b"")
-                if VaultFile(path, self.vault_password).plaintext != result.vault.plaintext:
+                if open_vault(path, self.vault_password, self.site).plaintext != result.vault.plaintext:
                     return False
             finally:
                 path.unlink(missing_ok=True)

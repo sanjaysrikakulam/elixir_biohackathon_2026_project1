@@ -30,7 +30,7 @@ from .publish import publish
 from .report import diff, json_report, publish_summary, summary
 from .sources.api import ApiSource, GalaxyApiError
 from .sources.gxadmin import GxadminError, GxadminSource
-from .vault import PASSWORD_ENV, VaultError, VaultFile, read_password
+from .vault import PASSWORD_ENV, VaultError, open_vault, read_password
 from .yamledit.doc import LocateError
 from .yamledit.verify import VerificationError
 
@@ -264,7 +264,7 @@ def _run_in_workspace(ns, site, source, workdir, token, gh, vault_password) -> i
     ) as ws:
         ws.reset()
         repo = Repo(ws.path, site)
-        vault = VaultFile(ws.path / site.vault_file, vault_password)  # wrong password: stop before Galaxy
+        vault = open_vault(ws.path / site.vault_file, vault_password, site)  # wrong password: stop before Galaxy
         scan = source.scan()
         options = PlanOptions(
             allow_delete=ns.allow_delete, strict=ns.no_fallback, allow_list=_allow_list(ns.allow_list)

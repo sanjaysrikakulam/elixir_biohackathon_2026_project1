@@ -56,6 +56,9 @@ def _clash(pattern: str, ref: str) -> str | None:
     return f"the BYOC name {name!r}" if name else None
 
 
+VAULT_FORMATS = ("file", "inline")
+
+
 @dataclass(frozen=True)
 class TargetSpec:
     key: str
@@ -78,6 +81,9 @@ class SiteConfig:
     vault_file: str
     user_preferences_file: str | None = None
     source: str = field(default="", compare=False)
+    vault_format: str = "file"  # "file": the whole file is a vault; "inline": plain YAML with !vault values
+    vault_id: str | None = None  # vault id for new inline values (default: the id of the existing ones)
+    vault_anchor: str = r"^rabbitmq_password_"  # new values go after the last variable matching this regex
 
     def __post_init__(self) -> None:
         # Runs again on dataclasses.replace (the --base-branch override).
@@ -133,8 +139,11 @@ class SiteConfig:
             targets[key] = TargetSpec(
                 key=key, **{k: spec[k] for k in ("file", "path", "id", "template", "anchor")}, field=spec.get("field")
             )
-        if not (raw.get("vault") or {}).get("file"):
+        vault = raw.get("vault") or {}
+        if not vault.get("file"):
             raise ConfigError(f"{source}: vault.file is missing")
+        if vault.get("format", "file") not in VAULT_FORMATS:
+            raise ConfigError(f"{source}: vault.format must be one of {', '.join(VAULT_FORMATS)}")
         templates = raw.get("templates", "eu")
         templates_dir = TEMPLATES_DIR / templates if (TEMPLATES_DIR / templates).is_dir() else base / templates
         if not templates_dir.is_dir():
@@ -150,7 +159,10 @@ class SiteConfig:
             site=dict(raw.get("site") or {}),
             naming=naming,
             targets=targets,
-            vault_file=raw["vault"]["file"],
+            vault_file=vault["file"],
+            vault_format=vault.get("format", "file"),
+            vault_id=vault.get("vault_id"),
+            vault_anchor=vault.get("anchor", r"^rabbitmq_password_"),
             user_preferences_file=raw.get("user_preferences_file"),
             source=source,
         )
