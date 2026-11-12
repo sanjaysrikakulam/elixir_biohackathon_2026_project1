@@ -1,0 +1,20 @@
+---
+roles:
+  - src: galaxyproject.pulsar
+    version: 1.0.11
+  - src: galaxyproject.slurm
+    version: 1.0.5
+  - src: galaxyproject.repos
+    version: 0.0.3
+  # usegalaxy-eu fork plus the new HTCondor download host, until that fix is merged upstream
+  - name: grycap.htcondor
+    src: https://github.com/pauldg/ansible-role-htcondor
+    version: 269113fe853505b454c91a9905768f0cb964ffd7
+  - src: galaxyproject.cvmfs
+    version: 0.5.2
+  - src: usegalaxy_eu.apptainer
+    version: 0.0.4
+  - src: geerlingguy.nfs
+    version: 2.1.1
+collections:
+  - name: ansible.posix

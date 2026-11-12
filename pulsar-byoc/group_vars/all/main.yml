@@ -1,0 +1,30 @@
+---
+# slurm or htcondor
+pulsar_scheduler: slurm
+
+# mq (RabbitMQ) or relay (pulsar-relay over HTTPS)
+pulsar_connection: mq
+
+# relay only: central (usegalaxy.eu's relay, account byoc_<Galaxy user id>) or own
+pulsar_relay_placement: central
+pulsar_relay_central_url: https://stargate.galaxyproject.eu
+# Encoded id of the Galaxy user who brings this compute, from /api/users/current
+pulsar_galaxy_user_id: ""
+
+# Shared over NFS from the Pulsar host to the workers
+pulsar_shared_dir: /data/share
+pulsar_nfs_network: 10.0.0.0/24
+
+# Same uid on every host, so jobs on the workers can write to the shared directory
+pulsar_user_name: pulsar
+pulsar_user_uid: 1200
+
+# Mount the Galaxy CVMFS repositories (reference data, containers) on the workers
+pulsar_cvmfs: true
+
+# GPUs offered to Galaxy, written to the connection summary
+pulsar_min_gpus: 0
+pulsar_max_gpus: 0
+
+# Connection summary for the Galaxy BYOC form, no passwords
+pulsar_summary_file: "{{ pulsar_server_dir }}/byoc-connection.yml"

@@ -1,0 +1,11 @@
+---
+# Variables for geerlingguy.nfs
+nfs_exports:
+  - "{{ pulsar_shared_dir }} {{ pulsar_nfs_network }}(rw,sync,no_subtree_check)"
+
+# Variables for galaxyproject.cvmfs
+cvmfs_role: client
+galaxy_cvmfs_repos_enabled: config-repo
+cvmfs_quota_limit: 4000
+# The role's LTS check fails on images where lsb distribution is just "Ubuntu"
+cvmfs_apt_distribution: "{{ ansible_distribution_release }}"

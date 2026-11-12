@@ -1,0 +1,30 @@
+---
+# Variables for galaxyproject.slurm, built from the inventory
+slurm_roles: >-
+  {{ (['controller'] if inventory_hostname in groups['pulsar'] else [])
+     + (['exec'] if inventory_hostname in groups['workers'] else []) }}
+
+slurm_munge_key: "{{ playbook_dir }}/files/munge.key"
+
+slurm_config:
+  SlurmctldHost: >-
+    {{ hostvars[groups['pulsar'][0]].ansible_hostname }}({{ hostvars[groups['pulsar'][0]].ansible_default_ipv4.address }})
+  SelectType: select/cons_tres
+  SelectTypeParameters: CR_CPU_Memory
+
+# 90% of each worker's memory goes to jobs
+slurm_nodes: >-
+  [{% for h in groups['workers'] %}
+  {"name": "{{ hostvars[h].ansible_hostname }}",
+   "NodeAddr": "{{ hostvars[h].ansible_default_ipv4.address }}",
+   "CPUs": {{ hostvars[h].ansible_processor_vcpus }},
+   "RealMemory": {{ (hostvars[h].ansible_memtotal_mb * 0.9) | int }},
+   "State": "UNKNOWN"},
+  {% endfor %}]
+
+slurm_partitions:
+  - name: main
+    Default: true
+    Nodes: ALL
+    MaxTime: INFINITE
+    State: UP
