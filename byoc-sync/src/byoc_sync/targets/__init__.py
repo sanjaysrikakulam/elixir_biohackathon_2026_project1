@@ -23,7 +23,8 @@ from typing import Any, Literal
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from ..config import SiteConfig
-from ..render import DesiredObject, Removal, email_from_key
+from ..render import DesiredObject, Removal, owner_from_key
+from ..validate import is_valid_name
 from ..yamledit.doc import Doc, plain
 from ..yamledit.edit import Edit, apply, delete_edit, insert_after_edit
 from ..yamledit.verify import VerificationError, _differences
@@ -177,28 +178,33 @@ class Target:
 
     def names(self, text: str) -> set[str]:
         """BYOC names that have an entry in this file (by naming convention)."""
-        if self.spec.id == "email_key":
+        if self.spec.id in ("email_key", "owner_key"):
             return set(self.owners(text))
         doc = Doc(text, self.spec.file)
         found = (self.site.naming.name_from(self.spec.id, str(i)) for i in self._ids(doc))
         return {name for name in found if name}
 
     def owners(self, text: str) -> dict[str, str]:
-        """For the users file: BYOC name -> owner e-mail, from the keys byoc-sync generates."""
+        """For the ownership file: BYOC name -> owner key (e-mail or Galaxy user id), from the entries byoc-sync
+        generates. An entry names its endpoint with a TPV rule (``users.yml``) or a plain ``name:`` field."""
         doc = Doc(text, self.spec.file)
         owners: dict[str, str] = {}
         users = doc.node(self.spec.path)
         if not isinstance(users, dict):
             return owners
         for key, value in users.items():
-            email = email_from_key(key)
-            rules = value.get("rules") if isinstance(value, dict) else None
-            if not email or not isinstance(rules, list):
+            # a hand-written numeric id is read as a number; byoc-sync itself always quotes the key
+            owner = owner_from_key(str(key) if isinstance(key, int) else key, self.site.owner_key)
+            if not owner or not isinstance(value, dict):
                 continue
-            for rule in rules:
+            plain = value.get("name")
+            if isinstance(plain, str) and is_valid_name(plain):
+                owners[plain] = owner
+            rules = value.get("rules")
+            for rule in rules if isinstance(rules, list) else []:
                 name = self.site.naming.name_from("rule_id", str(rule.get("id"))) if isinstance(rule, dict) else None
                 if name:
-                    owners[name] = email
+                    owners[name] = owner
         return owners
 
     # -- planning ---------------------------------------------------------------------------------------------
@@ -237,7 +243,7 @@ class Target:
                 if path is None:
                     continue
                 rest = residual(_plain(current), obj.universe)
-                if rest not in (None, {}, []) and self.spec.id == "email_key":
+                if rest not in (None, {}, []) and self.spec.id in ("email_key", "owner_key"):
                     # The users entry is shared with whatever admins wrote for the same e-mail:
                     # remove only byoc-sync's rule and keep the rest.
                     partial: list[Edit] = []
@@ -290,8 +296,8 @@ class Target:
         return self.spec.anchor
 
     def _is_ours(self, object_id: str) -> bool:
-        if self.spec.id == "email_key":
-            return email_from_key(object_id) is not None
+        if self.spec.id in ("email_key", "owner_key"):
+            return owner_from_key(object_id, self.site.owner_key) is not None
         return self.site.naming.name_from(self.spec.id, object_id) is not None
 
     def _update_edits(

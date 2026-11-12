@@ -13,7 +13,7 @@ Galaxy reads the form at start-up, so it needs a restart after the change.
 TPV must send a user's jobs to their own endpoint, and only theirs. byoc-sync supports two ways.
 
 - **By e-mail** (default, `owner_key: email`). byoc-sync writes one entry per user to TPV's `users.yml`, keyed by the user's address. Nothing to add on the Galaxy side, but every BYOC user's address ends up in the repository.
-- **By user id** (`owner_key: galaxy_id`). A Galaxy admin adds one fixed rule to the default tool entity: [`../galaxy-side/tpv/byoc_rule.yml`](../galaxy-side/tpv/byoc_rule.yml). byoc-sync then writes no address anywhere. [routing-by-user-id.md](routing-by-user-id.md) explains how it works.
+- **By user id** (`owner_key: galaxy_id`). A Galaxy admin adds one fixed rule to the default tool entity: [`../galaxy-side/tpv/byoc_rule.yml`](../galaxy-side/tpv/byoc_rule.yml), and creates the owners file from [`../galaxy-side/byoc_owners.yml`](../galaxy-side/byoc_owners.yml). byoc-sync then writes no address anywhere. [routing-by-user-id.md](routing-by-user-id.md) explains how it works and how to set up the site file.
 
 With a TPV version that has `SchedulingTags` (3.x), the rule can be used as it is.
 

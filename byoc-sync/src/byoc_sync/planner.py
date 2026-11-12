@@ -27,7 +27,7 @@ import yaml
 from .config import SiteConfig
 from .models import ByocRequest, UserRecord, ValidationFailure
 from .naming import Names
-from .render import DesiredObject, Removal, Renderer, deep_union, email_key, is_safe_email
+from .render import DesiredObject, Removal, Renderer, deep_union, email_key, is_safe_email, is_safe_galaxy_id
 from .sources import ScanResult, Source
 from .targets import FilePlan, Target
 from .validate import validate
@@ -183,6 +183,13 @@ class _Planner:
                 found.setdefault(name, []).append(f"{self.site.vault_file} ({var})")
         return found
 
+    # -- who owns what ----------------------------------------------------------------------------------------
+
+    def _owner(self, record: UserRecord) -> str:
+        """The key that identifies a user as an owner: the e-mail, or with owner_key: galaxy_id the user id.
+        ``UserPlan.email`` holds this key, so with galaxy_id no address reaches the files, reports or PRs."""
+        return record.galaxy_id if self.site.owner_key == "galaxy_id" else record.email
+
     # -- building intents -------------------------------------------------------------------------------------
 
     def _add(self, plan: UserPlan) -> None:
@@ -199,7 +206,7 @@ class _Planner:
         moved_from: str | None = None,
     ) -> UserPlan:
         names = Names.for_(req.name, self.site.naming)
-        email = record.email
+        email = self._owner(record)
         objects: dict[str, dict[str, DesiredObject | Removal]] = {key: {} for key in self.site.targets}
         wanted: dict[str, str | None] = {names.vault_var: req.password}
         for key in FILE_TARGETS:
@@ -260,13 +267,20 @@ class _Planner:
 
     def run(self) -> RunPlan:
         claims: dict[str, list[tuple[UserRecord, ByocRequest]]] = {}
+        by_id = self.site.owner_key == "galaxy_id"
         for record in sorted(self.scan.records, key=lambda r: r.email):
-            email = record.email
-            allowed = self.opts.allow_list is None or email in self.opts.allow_list or email in self.emails_owning
+            email = self._owner(record)
+            allow = self.opts.allow_list
+            allowed = allow is None or record.email in allow or record.galaxy_id in allow or email in self.emails_owning
             if not allowed:
                 self._add(UserPlan(email, "not-allowed", record.galaxy_id, reasons=["not on the allow list"]))
                 continue
-            if not is_safe_email(email):
+            if by_id and not is_safe_galaxy_id(email):
+                self._add(
+                    UserPlan(email, "invalid", record.galaxy_id, reasons=["the user id cannot be used as an owner key"])
+                )
+                continue
+            if not by_id and not is_safe_email(email):
                 self._add(
                     UserPlan(
                         email,
@@ -333,8 +347,8 @@ class _Planner:
         owner = self.owners.get(name)
         self.done_names.add(name)
         if owner:
-            mine = [c for c in claimants if c[0].email == owner]
-            others = [c for c in claimants if c[0].email != owner]
+            mine = [c for c in claimants if self._owner(c[0]) == owner]
+            others = [c for c in claimants if self._owner(c[0]) != owner]
             if mine:
                 self._add(self._finish(self._intent(*mine[0], "update")))
                 self._conflicts(others, f"the name '{name}' belongs to another user")
@@ -351,14 +365,14 @@ class _Planner:
                 f"entries named for '{name}' already exist without an owner: " + ", ".join(self.present[name]),
             )
             return
-        old_names = self.emails_owning.get(record.email, set()) - {name}
+        old_names = self.emails_owning.get(self._owner(record), set()) - {name}
         if old_names:
             old = sorted(old_names)[0]
             self.done_names.add(old)
             if not self.opts.allow_delete:
                 self._add(
                     UserPlan(
-                        record.email,
+                        self._owner(record),
                         "rename-deferred",
                         record.galaxy_id,
                         name=name,
@@ -378,7 +392,7 @@ class _Planner:
             for record, _req in claimants:
                 self._add(
                     UserPlan(
-                        record.email,
+                        self._owner(record),
                         "unreadable",
                         record.galaxy_id,
                         name=name,
@@ -405,7 +419,7 @@ class _Planner:
         for record, _req in claimants:
             self._add(
                 UserPlan(
-                    record.email,
+                    self._owner(record),
                     "needs-human",
                     record.galaxy_id,
                     name=name,
@@ -493,7 +507,10 @@ class _Planner:
         self._add(self._finish(plan))
 
     def _lookup(self, email: str, raise_errors: bool = False) -> UserRecord | None:
+        """The current account of an owner key (e-mail, or user id with owner_key: galaxy_id)."""
         try:
+            if self.site.owner_key == "galaxy_id":
+                return self.source.lookup_id(email)
             return self.source.lookup(email)
         except Exception:
             if raise_errors:
@@ -502,7 +519,7 @@ class _Planner:
 
     def _conflicts(self, claimants: list[tuple[UserRecord, ByocRequest]], reason: str) -> None:
         for record, req in claimants:
-            self._add(UserPlan(record.email, "conflict", record.galaxy_id, name=req.name, reasons=[reason]))
+            self._add(UserPlan(self._owner(record), "conflict", record.galaxy_id, name=req.name, reasons=[reason]))
 
 
 def plan(scan: ScanResult, repo: Repo, source: Source, vault: VaultFile, opts: PlanOptions | None = None) -> RunPlan:

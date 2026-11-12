@@ -24,11 +24,18 @@ The site setting `owner_key: galaxy_id` switches the mode. Three things change.
 3. **Ownership is kept in a small file keyed by user id**, for example `byoc_owners.yml`. Galaxy and TPV never read it. byoc-sync uses it the way it uses the `users.yml` keys today: to see which name belongs to whom, to detect renames and to remove an endpoint when its owner disables BYOC or is deleted.
 
 ```yaml
-# managed by byoc-sync
 byoc_owners:
-  0e0fad4d103ae8ed:
+  # keeps the mapping non-empty so byoc-sync can add owners below it
+  _placeholder: {}
+  '0e0fad4d103ae8ed':
     name: alice01
 ```
+
+byoc-sync only adds entries next to an existing one, so the file starts with the placeholder entry from [`../galaxy-side/byoc_owners.yml`](../galaxy-side/byoc_owners.yml). byoc-sync ignores it, because its key is not a user id. Keys are always quoted: an unquoted database id such as `42` would be read as a number.
+
+## Setting it up
+
+[`../galaxy-side/site-by-user-id.yml`](../galaxy-side/site-by-user-id.yml) is usegalaxy.eu's site file with these changes: `owner_key: galaxy_id`, the `users` target pointing at the owners file, and the templates in [`../galaxy-side/site-templates/`](../galaxy-side/site-templates/). Of those, `destination.yml.j2` has the id guard and `owner.yml.j2` writes the owner entry; the runner and RabbitMQ templates are usegalaxy.eu's. A site copies them, adapts the paths and adds the TPV rule.
 
 ## Why it is safe
 
@@ -36,11 +43,12 @@ The id comes from Galaxy's own record of the job, not from anything the user typ
 
 Setting the form's name to empty stops routing at once, before the removal pull request is merged, because the rule no longer finds a name.
 
-## What changes in byoc-sync
+## What changed in byoc-sync
 
-- A site setting `owner_key: email | galaxy_id`, default `email`. The planner uses this key where it uses the e-mail today: claims, owners, conflicts and reports.
-- A target for the owners file, used instead of the `users` target when `owner_key` is `galaxy_id`. The site file leaves the `users` target out.
-- The user id (`galaxy_id`) in the template context, so a site's destination template can write the owner guard above.
-- One source per site. The API source reports encoded ids and the gxadmin source database ids, so switching sources would change every stored id.
+- A site setting `owner_key: email | galaxy_id`, default `email`. The planner uses this key wherever it used the e-mail: claims, owners, conflicts, the allow list (which accepts e-mails and ids) and the reports. With `galaxy_id` the plan, the reports and the pull requests show the user id, not the address.
+- The `users` target is the ownership file when `owner_key` is `galaxy_id` (`id: owner_key`). Its entries name the endpoint with a plain `name:` field.
+- The templates get `owner_key` and `galaxy_id`. With `galaxy_id`, `email` and `email_key` are empty, so no template can put an address into a file.
+- Both sources look owners up by id (`lookup_id`): the API by encoded id, gxadmin by database id. Users whose data cannot be read are recorded by e-mail and id, so their entries stay untouched in either mode.
+- Use one source per site: the API source reports encoded ids and the gxadmin source database ids, so switching sources would change every stored id.
 
 usegalaxy.eu keeps its current setup. A site that wants addresses out of its repository sets `owner_key: galaxy_id`, adds the TPV rule once and uses a destination template with the id guard.

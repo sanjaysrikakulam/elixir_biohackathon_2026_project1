@@ -43,6 +43,30 @@ def email_from_key(key: str) -> str | None:
     return key if isinstance(key, str) and is_safe_email(key) else None
 
 
+# Galaxy user ids as the sources report them: encoded (API, hex) or the database id (gxadmin, digits).
+SAFE_GALAXY_ID_RE = re.compile(r"[0-9a-f]{1,64}")
+
+
+def is_safe_galaxy_id(galaxy_id: str) -> bool:
+    return isinstance(galaxy_id, str) and SAFE_GALAXY_ID_RE.fullmatch(galaxy_id) is not None
+
+
+def owner_key(owner: str, mode: str) -> str:
+    """The key that records who owns an endpoint: the e-mail (``email``) or the Galaxy user id (``galaxy_id``)."""
+    if mode == "galaxy_id":
+        if not is_safe_galaxy_id(owner):
+            raise ValueError(f"cannot write user id {owner!r} into the configuration")
+        return owner
+    return email_key(owner)
+
+
+def owner_from_key(key: str, mode: str) -> str | None:
+    """The owner a key in the ownership file stands for, or None if byoc-sync would not write such a key."""
+    if mode == "galaxy_id":
+        return key if is_safe_galaxy_id(key) else None
+    return email_from_key(key)
+
+
 def _yaml_key(value: str) -> str:
     # Plain like the hand-written entries when that is unambiguous YAML, single-quoted otherwise.
     return value if re.fullmatch(r"[A-Za-z0-9._@-]+", value) else _yaml_single(value)
@@ -101,13 +125,18 @@ class Renderer:
         self.env.filters["pystr"] = lambda v: json.dumps(str(v))
 
     def render(self, key: str, req: ByocRequest, names: Names, email: str, *, strict: bool = False) -> str:
+        """``email`` is the owner key: the e-mail, or with ``owner_key: galaxy_id`` the Galaxy user id."""
         spec = self.site.targets[key]
         values = {k: v for k, v in asdict(req).items() if k != "password"}
+        by_id = self.site.owner_key == "galaxy_id"
         context = {
             "req": values,
             "names": names,
-            "email": email,
-            "email_key": email_key(email),
+            # with owner_key: galaxy_id no e-mail is known to the templates, so none can end up in a file
+            "email": None if by_id else email,
+            "email_key": None if by_id else email_key(email),
+            "owner_key": owner_key(email, self.site.owner_key),
+            "galaxy_id": email if by_id else None,
             "site": self.site.site,
             "strict": strict,
         }
@@ -115,7 +144,9 @@ class Renderer:
 
     def object_id(self, key: str, names: Names, email: str) -> str:
         attribute = self.site.targets[key].id
-        return email_key(email) if attribute == "email_key" else getattr(names, attribute)
+        if attribute in ("email_key", "owner_key"):
+            return owner_key(email, self.site.owner_key)
+        return getattr(names, attribute)
 
     @staticmethod
     def _entry(text: str) -> Any:
