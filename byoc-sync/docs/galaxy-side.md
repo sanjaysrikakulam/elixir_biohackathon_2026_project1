@@ -37,6 +37,6 @@ If the tool defaults set volumes, the parent destination must override them.
 ## For byoc-sync itself
 
 - A Galaxy admin API key (API source) or gxadmin with database access (gxadmin source). Galaxy 26.1 returns password inputs to admins; 26.2 and later do not, so newer servers need the gxadmin source.
-- The vault password of the file byoc-sync writes the RabbitMQ passwords to.
+- The vault password of the file byoc-sync writes the RabbitMQ passwords to. That file is a whole-file vault, or plain YAML with inline `!vault` values ([inline-vault.md](inline-vault.md)).
 - A token that may push branches to the playbook repository and open pull requests there. Pull requests opened with a workflow's built-in token do not start other workflows, so a bot or GitHub App token is better.
-- A site file (`sites/<site>.yml`) with the paths, anchors, naming and templates of the server's playbook repository. [`../src/byoc_sync/sites/eu.yml`](../src/byoc_sync/sites/eu.yml) is the example.
+- A site file (`sites/<site>.yml`) with the paths, anchors, naming and templates of the server's playbook repository. [`../src/byoc_sync/sites/eu.yml`](../src/byoc_sync/sites/eu.yml) is the example; [`../src/byoc_sync/sites/usegalaxy-be-test.yml`](../src/byoc_sync/sites/usegalaxy-be-test.yml) uses user ids and an inline vault.

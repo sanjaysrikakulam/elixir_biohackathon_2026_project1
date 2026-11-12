@@ -14,7 +14,6 @@ The password comes from ``--vault-password-file`` or the ``BYOC_SYNC_VAULT_PASSW
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal

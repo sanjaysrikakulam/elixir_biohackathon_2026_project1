@@ -17,7 +17,10 @@ NEW = "rabbitmq_password_galaxy_alice01_byoc"
 
 def encrypted(value: str, vault_id: str | None = "byoc", password: bytes = PASSWORD) -> list[str]:
     lib = VaultLib([(vault_id or "default", VaultSecret(password))])
-    return ["  " + line for line in lib.encrypt(value.encode(), VaultSecret(password), vault_id=vault_id).decode().splitlines()]
+    return [
+        "  " + line
+        for line in lib.encrypt(value.encode(), VaultSecret(password), vault_id=vault_id).decode().splitlines()
+    ]
 
 
 def inline_file(values: dict[str, str], vault_id: str | None = "byoc") -> str:

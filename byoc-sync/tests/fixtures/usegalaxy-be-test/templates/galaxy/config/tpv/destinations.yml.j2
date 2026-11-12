@@ -1,0 +1,38 @@
+---
+global:
+  default_inherits: _default_environment
+destinations:
+  _default_environment:
+    abstract: true
+    env:
+      LC_ALL: C
+  _pulsar:
+    abstract: true
+    inherits: _default_environment
+    params:
+      singularity_volumes: "$job_directory:rw,$tool_directory:ro,$job_directory/outputs:rw,$working_directory:rw,/cvmfs/data.galaxyproject.org:ro"
+{% if galaxy_tpv_extra | default(false) %}
+      extra: true
+{% endif %}
+
+  pulsar_sanjay_tpv:
+    inherits: _pulsar
+    runner: pulsar_de01
+    max_accepted_cores: 8
+    max_accepted_mem: 15
+    scheduling:
+      require:
+        - sanjay-pulsar
+
+  # BEGIN BYOC byoc_0e0fad4d103ae8ed (managed by scripts/byoc/byoc_sync.py, do not edit)
+  pulsar_byoc_0e0fad4d103ae8ed_tpv:
+    inherits: _pulsar
+    runner: pulsar_byoc_0e0fad4d103ae8ed
+    max_accepted_cores: 4
+    max_accepted_mem: 28
+    scheduling:
+      require:
+        - byoc-0e0fad4d103ae8ed
+  # END BYOC byoc_0e0fad4d103ae8ed
+
+  # BYOC: generated blocks go above this line
