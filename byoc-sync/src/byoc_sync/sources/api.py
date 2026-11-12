@@ -194,12 +194,12 @@ class ApiSource:
                     # Unknown state: this user's config must stay exactly as it is.
                     failed += 1
                     result.errors.append(error)
-                    result.unreadable.add(email or user_id)
+                    result.unreadable.update(k for k in (email, user_id) if k)
                     continue
                 record, parse_error = self._record(detail, active)
                 if parse_error:
                     result.errors.append(parse_error)
-                    result.unreadable.add(str(detail.get("email") or user_id))
+                    result.unreadable.update(k for k in (str(detail.get("email") or ""), user_id) if k)
                 elif record is not None and record.prefs:
                     result.records.append(record)
         result.records.sort(key=lambda r: r.email)
@@ -216,4 +216,25 @@ class ApiSource:
                 if error:
                     raise GalaxyApiError(error)
                 return record
+        return None
+
+    def lookup_id(self, galaxy_id: str) -> UserRecord | None:
+        """The account with this (encoded) id, deleted ones included; None if Galaxy does not know it."""
+        if self._redacting is None or not self._admin_checked:
+            self._check()
+        for deleted in (False, True):
+            try:
+                user = self.gi.users.show_user(galaxy_id, deleted=deleted)
+            except BioblendConnectionError as exc:
+                if getattr(exc, "status_code", None) in (400, 404):
+                    continue  # not an account in this state
+                raise _api_error(f"/api/users/{galaxy_id}", exc) from None
+            if not isinstance(user, dict) or str(user.get("id")) != galaxy_id:
+                continue
+            email = str(user.get("email") or "")
+            active = next((a for i, _e, _d, a in self._list(f_email=email) if i == galaxy_id), True) if email else True
+            record, error = self._record(user, active)
+            if error:
+                raise GalaxyApiError(error)
+            return record
         return None
