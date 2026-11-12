@@ -1,4 +1,4 @@
-# Values for usegalaxy.eu: User > Preferences > Manage information > byoc_pulsar
+# Values for the BYOC form in Galaxy: User > Preferences > Manage information > byoc_pulsar
 # Passwords are not listed: use the one you chose for this Pulsar.
 transport: {{ pulsar_connection }}
 {% if pulsar_connection == 'mq' %}
@@ -13,7 +13,7 @@ relay_username: {{ pulsar_relay_username_final }}
 relay_topic_prefix: {{ pulsar_relay_topic_prefix }}
 {% endif %}
 {% endif %}
-jobs_directory: {{ pulsar_staging_dir }}
+nfs_path: {{ pulsar_shared_dir }}
 max_accepted_cores: {{ pulsar_max_cores }}
 max_accepted_mem: {{ pulsar_max_mem_gb }}
 min_accepted_gpus: {{ pulsar_min_gpus }}

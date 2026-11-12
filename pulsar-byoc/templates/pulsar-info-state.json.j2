@@ -5,6 +5,7 @@
     "password": pulsar_info_page_password,
     "max_cpus": pulsar_max_cores | int,
     "max_ram_gib": pulsar_max_mem_gb | int,
-    "max_gpus": pulsar_max_gpus | int
+    "max_gpus": pulsar_max_gpus | int,
+    "nfs_path": pulsar_shared_dir
   }
 } | to_nice_json }}
