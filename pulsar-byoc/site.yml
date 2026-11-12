@@ -1,0 +1,228 @@
+---
+# Pulsar endpoint with a SLURM or HTCondor cluster behind it.
+# Hosts in the "pulsar" group run Pulsar and the scheduler's controller.
+# Hosts in the "workers" group run jobs. A host can be in both groups.
+
+- name: Check settings
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Check scheduler and connection
+      ansible.builtin.assert:
+        that:
+          - pulsar_scheduler in ['slurm', 'htcondor']
+          - pulsar_connection in ['mq', 'relay']
+          - groups['pulsar'] | length == 1
+          - groups['workers'] | length >= 1
+        fail_msg: Set pulsar_scheduler and pulsar_connection, one host in "pulsar", at least one in "workers".
+
+    - name: Check the central relay settings
+      ansible.builtin.assert:
+        that:
+          - pulsar_galaxy_user_id is match('^[0-9a-f]+$')
+          - pulsar_relay_password | length > 0
+        fail_msg: For the central relay, set pulsar_galaxy_user_id (encoded id) and pulsar_relay_password.
+      when: pulsar_connection == 'relay' and pulsar_relay_placement == 'central'
+
+    - name: Check the own relay settings
+      ansible.builtin.assert:
+        that:
+          - pulsar_relay_url is match('^https://')
+          - pulsar_relay_username | length > 0
+          - pulsar_relay_password | length > 0
+        fail_msg: For your own relay, set pulsar_relay_url (https), pulsar_relay_username and pulsar_relay_password.
+      when: pulsar_connection == 'relay' and pulsar_relay_placement == 'own'
+
+    - name: Check the RabbitMQ settings
+      ansible.builtin.assert:
+        that:
+          - pulsar_message_queue_url is match('^(py)?amqps?://[^:@/]+:[^@]+@')
+        fail_msg: Set pulsar_message_queue_url to pyamqp://USER:PASSWORD@HOST:PORT//VHOST?ssl=1.
+      when: pulsar_connection == 'mq'
+
+- name: Common setup
+  hosts: pulsar:workers
+  become: true
+  tasks:
+    # Large uploads to Galaxy stall when a path drops ICMP "fragmentation needed"
+    # (seen from SURF Research Cloud, MTU 8950, to test.usegalaxy.be)
+    - name: Let TCP detect MTU black holes
+      ansible.posix.sysctl:
+        name: net.ipv4.tcp_mtu_probing
+        value: "1"
+        sysctl_file: /etc/sysctl.d/90-pulsar-byoc.conf
+
+    - name: Create the Pulsar group
+      ansible.builtin.group:
+        name: "{{ pulsar_user_name }}"
+        gid: "{{ pulsar_user_uid }}"
+        system: true
+
+    - name: Create the Pulsar user with the same uid on every host
+      ansible.builtin.user:
+        name: "{{ pulsar_user_name }}"
+        uid: "{{ pulsar_user_uid }}"
+        group: "{{ pulsar_user_name }}"
+        home: "{{ pulsar_server_dir }}"
+        create_home: false
+        system: true
+        shell: /bin/bash
+
+    - name: Create a munge key for SLURM # noqa: run-once[task]
+      ansible.builtin.command:
+        cmd: dd if=/dev/urandom of={{ slurm_munge_key }} bs=1 count=1024
+        creates: "{{ slurm_munge_key }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: pulsar_scheduler == 'slurm'
+
+- name: Shared directory on the Pulsar host
+  hosts: pulsar
+  become: true
+  pre_tasks:
+    - name: Create the shared directory
+      ansible.builtin.file:
+        path: "{{ pulsar_shared_dir }}"
+        state: directory
+        owner: "{{ pulsar_user_name }}"
+        group: "{{ pulsar_user_name }}"
+        mode: "0755"
+  roles:
+    - geerlingguy.nfs
+
+- name: Mount the shared directory on the workers
+  hosts: workers:!pulsar
+  become: true
+  tasks:
+    - name: Install the NFS client
+      ansible.builtin.package:
+        name: "{{ 'nfs-common' if ansible_os_family == 'Debian' else 'nfs-utils' }}"
+        state: present
+
+    - name: Mount the shared directory
+      ansible.posix.mount:
+        src: "{{ hostvars[groups['pulsar'][0]].ansible_default_ipv4.address }}:{{ pulsar_shared_dir }}"
+        path: "{{ pulsar_shared_dir }}"
+        fstype: nfs
+        opts: rw,hard,_netdev
+        state: mounted
+
+- name: Job scheduler
+  hosts: pulsar:workers
+  become: true
+  tasks:
+    - name: Install SLURM
+      ansible.builtin.include_role:
+        name: galaxyproject.slurm
+      when: pulsar_scheduler == 'slurm'
+
+    - name: Install HTCondor
+      ansible.builtin.include_role:
+        name: grycap.htcondor
+      when: pulsar_scheduler == 'htcondor'
+
+- name: Software for jobs on the workers
+  hosts: workers
+  become: true
+  tasks:
+    - name: Mount the Galaxy CVMFS repositories
+      ansible.builtin.include_role:
+        name: galaxyproject.cvmfs
+      when: pulsar_cvmfs | bool
+
+    - name: Install Apptainer
+      ansible.builtin.include_role:
+        name: usegalaxy_eu.apptainer
+
+    - name: Make CVMFS visible in every container
+      ansible.builtin.lineinfile:
+        path: /etc/apptainer/apptainer.conf
+        line: bind path = /cvmfs
+        insertafter: '^#?\s*bind path'
+      when: pulsar_cvmfs | bool
+
+- name: Pulsar
+  hosts: pulsar
+  become: true
+  pre_tasks:
+    - name: Install build dependencies for Pulsar
+      ansible.builtin.package:
+        name: "{{ pulsar_build_packages[ansible_os_family] }}"
+        state: present
+
+    - name: Add the package source for the SLURM DRMAA library
+      ansible.builtin.include_role:
+        name: galaxyproject.repos
+      when: pulsar_scheduler == 'slurm'
+
+    - name: Install the SLURM DRMAA library
+      ansible.builtin.package:
+        name: "{{ pulsar_slurm_drmaa_package[ansible_os_family] }}"
+        state: present
+      when: pulsar_scheduler == 'slurm'
+  roles:
+    - galaxyproject.pulsar
+  handlers:
+    - name: Restart Pulsar
+      ansible.builtin.systemd:
+        name: "{{ pulsar_systemd_service_name }}.service"
+        state: restarted
+  post_tasks:
+    - name: Apply Pulsar config changes before checking the connection
+      ansible.builtin.meta: flush_handlers
+
+    # The central relay account exists only after usegalaxy.eu merges the user's PR
+    - name: Sign in to the relay
+      ansible.builtin.uri:
+        url: "{{ pulsar_relay_url_final }}/auth/login"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          username: "{{ pulsar_relay_username_final }}"
+          password: "{{ pulsar_relay_password }}"
+        status_code: [200, 401, 403]
+      register: _relay_login
+      failed_when: false
+      no_log: true
+      when: pulsar_connection == 'relay'
+
+    - name: Wait until Pulsar has connected to the relay
+      ansible.builtin.uri:
+        url: "{{ pulsar_relay_url_final }}/api/v1/topics"
+        headers:
+          Authorization: "Bearer {{ _relay_login.json.access_token }}"
+      register: _relay_topics
+      until: >-
+        pulsar_relay_capabilities_topic in
+        ((_relay_topics.json | default([])) | map(attribute='topic_name') | list)
+      retries: 12
+      delay: 5
+      failed_when: false
+      no_log: true
+      when: pulsar_connection == 'relay' and _relay_login.status == 200
+
+    - name: Record the connection state
+      ansible.builtin.set_fact:
+        pulsar_connected_state: >-
+          {{ 'not checked (mq)' if pulsar_connection == 'mq'
+             else ('relay login failed (HTTP ' ~ _relay_login.status ~ '), account not created yet?' if _relay_login.status != 200
+             else (pulsar_relay_capabilities_topic in
+                   ((_relay_topics.json | default([])) | map(attribute='topic_name') | list))) }}
+
+    - name: Write the connection summary for the Galaxy BYOC form
+      ansible.builtin.template:
+        src: templates/byoc-connection.yml.j2
+        dest: "{{ pulsar_summary_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Read the connection summary
+      ansible.builtin.slurp:
+        src: "{{ pulsar_summary_file }}"
+      register: _summary
+
+    - name: Show the connection summary
+      ansible.builtin.debug:
+        msg: "{{ (_summary.content | b64decode).splitlines() }}"

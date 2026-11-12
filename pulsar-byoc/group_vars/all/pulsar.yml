@@ -1,0 +1,85 @@
+---
+# Variables for galaxyproject.pulsar
+pulsar_package_version: "0.15.15"
+pulsar_server_dir: /opt/pulsar
+pulsar_venv_dir: "{{ pulsar_server_dir }}/venv"
+pulsar_virtualenv_command: /usr/bin/python3 -m venv
+pulsar_config_dir: "{{ pulsar_server_dir }}/config"
+pulsar_persistence_dir: "{{ pulsar_server_dir }}/files/persisted_data"
+pulsar_staging_dir: "{{ pulsar_shared_dir }}/staging"
+pulsar_dependencies_dir: "{{ pulsar_shared_dir }}/deps"
+
+pulsar_user: "{{ pulsar_user_name }}"
+pulsar_create_user: false
+
+pulsar_systemd: true
+# The role's own restart handler never restarts systemd (two handlers share one name)
+pulsar_restart_handler_name: Restart Pulsar
+pulsar_systemd_runner: webless
+pulsar_systemd_environment: >-
+  {{ ['DRMAA_LIBRARY_PATH=' ~ pulsar_drmaa_library_path] if pulsar_scheduler == 'slurm' else [] }}
+
+pulsar_optional_dependencies: >-
+  {{ ['pycurl', 'requests', 'psutil']
+     + (['kombu', 'pyOpenSSL'] if pulsar_connection == 'mq' else ['pulsar-relay-client==0.2.1'])
+     + (['drmaa'] if pulsar_scheduler == 'slurm' else []) }}
+
+# usegalaxy.eu's MQ runners use the manager "production", its relay runners the default one
+pulsar_manager_name: "{{ 'production' if pulsar_connection == 'mq' else '_default_' }}"
+
+# Relay settings after applying the central or own placement
+pulsar_relay_url_final: >-
+  {{ pulsar_relay_central_url if pulsar_relay_placement == 'central' else pulsar_relay_url }}
+pulsar_relay_username_final: >-
+  {{ 'byoc_' ~ pulsar_galaxy_user_id if pulsar_relay_placement == 'central' else pulsar_relay_username }}
+
+pulsar_yaml_config: >-
+  {{ pulsar_base_config | combine(pulsar_relay_config if pulsar_connection == 'relay' else {}) }}
+
+pulsar_base_config:
+  message_queue_url: >-
+    {{ pulsar_relay_url_final if pulsar_connection == 'relay' else pulsar_message_queue_url }}
+  min_polling_interval: 0.5
+  conda_auto_init: false
+  conda_auto_install: false
+  managers: "{{ {pulsar_manager_name: pulsar_managers[pulsar_scheduler] | combine(pulsar_staging_retries)} }}"
+
+# An https:// message_queue_url switches Pulsar to relay mode
+pulsar_relay_config:
+  message_queue_username: "{{ pulsar_relay_username_final }}"
+  message_queue_password: "{{ pulsar_relay_password }}"
+  relay_topic_prefix: "{{ pulsar_relay_topic_prefix }}"
+
+pulsar_managers:
+  slurm:
+    type: queued_drmaa
+  htcondor:
+    type: queued_condor
+    submit_universe: vanilla
+
+pulsar_staging_retries:
+  preprocess_action_max_retries: 10
+  preprocess_action_interval_start: 2
+  preprocess_action_interval_step: 2
+  preprocess_action_interval_max: 30
+  postprocess_action_max_retries: 10
+  postprocess_action_interval_start: 2
+  postprocess_action_interval_step: 2
+  postprocess_action_interval_max: 30
+
+pulsar_build_packages:
+  Debian: [build-essential, python3-venv, python3-dev, libcurl4-gnutls-dev, libgnutls28-dev]
+  RedHat: [gcc, python3-devel, libcurl-devel, openssl-devel]
+
+# From the Galaxy PPA (Ubuntu) or depot (EL), added by galaxyproject.repos
+pulsar_slurm_drmaa_package:
+  Debian: slurm-drmaa1
+  RedHat: slurm-drmaa
+pulsar_drmaa_library_path: >-
+  {{ '/usr/lib/slurm-drmaa/lib/libdrmaa.so.1' if ansible_os_family == 'Debian' else '/usr/lib64/libdrmaa.so.1' }}
+
+# Pulsar posts here once it is connected to the relay
+pulsar_relay_capabilities_topic: >-
+  {{ (pulsar_relay_topic_prefix ~ '_' if pulsar_relay_topic_prefix else '')
+     ~ 'pulsar_capabilities'
+     ~ ('' if pulsar_manager_name == '_default_' else '_' ~ pulsar_manager_name) }}

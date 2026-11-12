@@ -1,0 +1,11 @@
+---
+# Variables for grycap.htcondor, built from the inventory
+htcondor_version: "25.0"
+htcondor_server: "{{ hostvars[groups['pulsar'][0]].ansible_default_ipv4.address }}"
+htcondor_type_of_node: "{{ 'front' if inventory_hostname in groups['pulsar'] else 'wn' }}"
+htcondor_role_manager: "{{ inventory_hostname in groups['pulsar'] }}"
+htcondor_role_submit: "{{ inventory_hostname in groups['pulsar'] }}"
+htcondor_role_execute: "{{ inventory_hostname in groups['workers'] }}"
+htcondor_password: "{{ pulsar_htcondor_password }}"
+# Same UID_DOMAIN on every host, so jobs run as the pulsar user instead of nobody
+htcondor_domain: pulsar-byoc
