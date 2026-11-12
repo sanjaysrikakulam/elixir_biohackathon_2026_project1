@@ -40,6 +40,9 @@
         fail_msg: Set pulsar_message_queue_url to pyamqp://USER:PASSWORD@HOST:PORT//VHOST?ssl=1.
       when: pulsar_connection == 'mq'
 
+- name: Information page
+  ansible.builtin.import_playbook: info-page.yml
+
 - name: Common setup
   hosts: pulsar:workers
   become: true
@@ -168,12 +171,6 @@
       ansible.builtin.systemd:
         name: "{{ pulsar_systemd_service_name }}.service"
         state: restarted
-
-    - name: Restart the information page
-      ansible.builtin.systemd:
-        name: pulsar-info.service
-        state: restarted
-        daemon_reload: true
   post_tasks:
     - name: Apply Pulsar config changes before checking the connection
       ansible.builtin.meta: flush_handlers
@@ -233,6 +230,6 @@
       ansible.builtin.debug:
         msg: "{{ (_summary.content | b64decode).splitlines() }}"
 
-    - name: Set up the information page for the Galaxy BYOC form
-      ansible.builtin.include_tasks: tasks/info_page.yml
+    - name: Mark the information page as operational
+      ansible.builtin.include_tasks: tasks/info_page_state.yml
       when: pulsar_info_page | bool

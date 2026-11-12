@@ -13,6 +13,7 @@ pulsar_user: "{{ pulsar_user_name }}"
 pulsar_create_user: false
 
 pulsar_systemd: true
+pulsar_systemd_service_name: pulsar
 # The role's own restart handler never restarts systemd (two handlers share one name)
 pulsar_restart_handler_name: Restart Pulsar
 pulsar_systemd_runner: webless

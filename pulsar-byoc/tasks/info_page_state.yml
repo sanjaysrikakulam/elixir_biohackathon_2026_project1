@@ -1,0 +1,17 @@
+---
+- name: Check whether Pulsar is running
+  ansible.builtin.service_facts:
+
+# The page reads this on every request, so a change needs no restart
+- name: Write the values the page shows
+  ansible.builtin.template:
+    src: templates/pulsar-info-state.json.j2
+    dest: "{{ pulsar_info_page_dir }}/app/state.json"
+    owner: root
+    group: "{{ pulsar_info_page_user }}"
+    mode: "0640"
+  vars:
+    pulsar_info_page_service_state: >-
+      {{ 'OPERATIONAL' if ansible_facts.services.get(pulsar_systemd_service_name ~ '.service', {}).get('state') == 'running'
+         else 'INCOMPLETE' }}
+  no_log: true

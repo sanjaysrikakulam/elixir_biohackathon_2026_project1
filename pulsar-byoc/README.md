@@ -62,6 +62,14 @@ The page has no login of its own and shows the password, so it only listens on `
 ssh -L 8080:127.0.0.1:8080 <user>@<pulsar host>   # then open http://127.0.0.1:8080
 ```
 
+The page is set up by its own playbook, `info-page.yml`, which only needs the credentials and the hosts. A provider can run it as soon as the VM exists, so the user can fill in the Galaxy form while Pulsar is still being set up:
+
+```bash
+ansible-playbook info-page.yml -e @secrets.yml -e pulsar_connection=mq
+```
+
+The page then shows the status INCOMPLETE. `site.yml` runs the same playbook first and sets the status to OPERATIONAL once Pulsar is running.
+
 Set `pulsar_info_page: false` to leave it out. The values are written to `/opt/pulsar-info/app/state.json` (mode 0640); the page reads them on every request.
 
 ## Usage
