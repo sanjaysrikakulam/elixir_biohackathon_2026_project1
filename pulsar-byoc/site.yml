@@ -168,6 +168,12 @@
       ansible.builtin.systemd:
         name: "{{ pulsar_systemd_service_name }}.service"
         state: restarted
+
+    - name: Restart the information page
+      ansible.builtin.systemd:
+        name: pulsar-info.service
+        state: restarted
+        daemon_reload: true
   post_tasks:
     - name: Apply Pulsar config changes before checking the connection
       ansible.builtin.meta: flush_handlers
@@ -226,3 +232,7 @@
     - name: Show the connection summary
       ansible.builtin.debug:
         msg: "{{ (_summary.content | b64decode).splitlines() }}"
+
+    - name: Set up the information page for the Galaxy BYOC form
+      ansible.builtin.include_tasks: tasks/info_page.yml
+      when: pulsar_info_page | bool

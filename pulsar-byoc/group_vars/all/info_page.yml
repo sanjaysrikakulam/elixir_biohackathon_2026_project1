@@ -1,0 +1,17 @@
+---
+# Page that shows the user what to enter in Galaxy's BYOC form
+# (https://github.com/SimpleVM/pulsar-fastapi-resenv). It has no login and shows
+# the password, so it listens on localhost; an authenticating proxy exposes it.
+pulsar_info_page: true
+pulsar_info_page_repo: https://github.com/SimpleVM/pulsar-fastapi-resenv.git
+pulsar_info_page_version: b733b45a107f9182b9dcdb6a02c46e0fa9066574
+pulsar_info_page_dir: /opt/pulsar-info
+pulsar_info_page_user: pulsar-info
+pulsar_info_page_host: 127.0.0.1
+pulsar_info_page_port: 8080
+
+# Values shown on the page
+pulsar_info_page_username: >-
+  {{ pulsar_message_queue_url | urlsplit('username') if pulsar_connection == 'mq' else pulsar_relay_username_final }}
+pulsar_info_page_password: >-
+  {{ pulsar_message_queue_url | urlsplit('password') if pulsar_connection == 'mq' else pulsar_relay_password }}

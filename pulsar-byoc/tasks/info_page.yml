@@ -1,0 +1,52 @@
+---
+- name: Create the information page user
+  ansible.builtin.user:
+    name: "{{ pulsar_info_page_user }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Install git for the information page
+  ansible.builtin.package:
+    name: git
+    state: present
+
+- name: Get the information page
+  ansible.builtin.git:
+    repo: "{{ pulsar_info_page_repo }}"
+    version: "{{ pulsar_info_page_version }}"
+    dest: "{{ pulsar_info_page_dir }}"
+  notify: Restart the information page
+
+- name: Install the information page's Python packages
+  ansible.builtin.pip:
+    requirements: "{{ pulsar_info_page_dir }}/requirements.txt"
+    virtualenv: "{{ pulsar_info_page_dir }}/venv"
+    virtualenv_command: /usr/bin/python3 -m venv
+  notify: Restart the information page
+
+# The page reads this on every request, so a change needs no restart
+- name: Write the values the page shows
+  ansible.builtin.template:
+    src: templates/pulsar-info-state.json.j2
+    dest: "{{ pulsar_info_page_dir }}/app/state.json"
+    owner: root
+    group: "{{ pulsar_info_page_user }}"
+    mode: "0640"
+  no_log: true
+
+- name: Install the information page service
+  ansible.builtin.template:
+    src: templates/pulsar-info.service.j2
+    dest: /etc/systemd/system/pulsar-info.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the information page
+
+- name: Start the information page
+  ansible.builtin.systemd:
+    name: pulsar-info.service
+    state: started
+    enabled: true
+    daemon_reload: true

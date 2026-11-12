@@ -1,0 +1,19 @@
+[Unit]
+Description=Pulsar BYOC information page
+After=network-online.target
+
+[Service]
+User={{ pulsar_info_page_user }}
+Group={{ pulsar_info_page_user }}
+WorkingDirectory={{ pulsar_info_page_dir }}
+Environment=PULSAR_RESENV_HOST={{ pulsar_info_page_host }}
+Environment=PULSAR_RESENV_PORT={{ pulsar_info_page_port }}
+ExecStart={{ pulsar_info_page_dir }}/venv/bin/python -m app.main
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

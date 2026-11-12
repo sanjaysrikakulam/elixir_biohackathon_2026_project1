@@ -52,6 +52,18 @@ At the end of the run the playbook writes `/opt/pulsar/byoc-connection.yml` on t
 
 With the relay, the playbook also checks that Pulsar has connected. It signs in to the relay and waits for Pulsar's capability topic (`pulsar_capabilities`). On the central relay this only works after usegalaxy.eu has created the account, so a first run reports "relay login failed" in the summary instead of stopping. Run the playbook again after the PR is merged to confirm the connection.
 
+## Information page
+
+The playbook also installs a small web page on the Pulsar host that shows the user what to enter in the Galaxy BYOC form: the username and password, the CPU, memory and GPU limits, and with SLURM the live capacity of the cluster. It is the page de.NBI SimpleVM shows its users ([SimpleVM/pulsar-fastapi-resenv](https://github.com/SimpleVM/pulsar-fastapi-resenv)), installed at a fixed commit as the `pulsar-info` service.
+
+The page has no login of its own and shows the password, so it only listens on `127.0.0.1:8080`. A proxy that signs the user in makes it reachable: FORC on SimpleVM, nginx with SRAM on SURF Research Cloud. Without one, the user can open it through an SSH tunnel:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <user>@<pulsar host>   # then open http://127.0.0.1:8080
+```
+
+Set `pulsar_info_page: false` to leave it out. The values are written to `/opt/pulsar-info/app/state.json` (mode 0640); the page reads them on every request.
+
 ## Usage
 
 The playbook runs from any machine that can reach the hosts over SSH, with a user that can `sudo` without a password. Install the roles, add the hosts and secrets, and run it:

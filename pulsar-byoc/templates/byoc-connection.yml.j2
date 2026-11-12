@@ -14,8 +14,8 @@ relay_topic_prefix: {{ pulsar_relay_topic_prefix }}
 {% endif %}
 {% endif %}
 jobs_directory: {{ pulsar_staging_dir }}
-max_accepted_cores: {{ groups['workers'] | map('extract', hostvars, 'ansible_processor_vcpus') | max }}
-max_accepted_mem: {{ ((groups['workers'] | map('extract', hostvars, 'ansible_memtotal_mb') | max) * 0.9 / 1024) | int }}
+max_accepted_cores: {{ pulsar_max_cores }}
+max_accepted_mem: {{ pulsar_max_mem_gb }}
 min_accepted_gpus: {{ pulsar_min_gpus }}
 max_accepted_gpus: {{ pulsar_max_gpus }}
 
