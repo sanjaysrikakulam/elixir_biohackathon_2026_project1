@@ -1,0 +1,87 @@
+:root {
+    --primary-color: #144C4D;
+    --secondary-color: #24888A;
+    --bg-light: #fdfdfd;
+    --accent-color: #34C7C9;
+}
+body {
+    background-color: var(--bg-light);
+}
+.navbar {
+    background-color: var(--primary-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.navbar-brand {
+    color: white !important;
+    font-weight: 600;
+}
+.card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+}
+.card:hover {
+    transform: translateY(-2px);
+}
+.stat-card {
+    border-left: 4px solid var(--primary-color);
+}
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+.stat-label {
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.hero-section {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    color: white;
+    padding: 3rem 0;
+    margin-bottom: 2rem;
+}
+.config-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+}
+.config-card:hover {
+    transform: translateY(-2px);
+}
+.config-value {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    background-color: var(--bg-light);
+    padding: 0.5rem;
+    border-radius: 4px;
+    word-break: break-all;
+}
+.copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.config-card:hover .copy-btn,
+.config-card:focus-within .copy-btn {
+    opacity: 1;
+}
+.copy-success {
+    color: #28a745;
+    font-size: 0.8rem;
+}
+.feature-icon {
+    font-size: 2rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+footer {
+    background-color: #343a40;
+    color: #adb5bd;
+    padding: 2rem 0;
+    margin-top: 3rem;
+}

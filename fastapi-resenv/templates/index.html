@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                PULSAR BYOC
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#readme">Guide</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section text-center">
+        <div class="container">
+            <h1 class="display-4 fw-bold">{{ welcome_message }}</h1>
+            <p class="lead mb-0">{{ description }}</p>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <div class="container mb-5">
+        <!-- Health Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert {% if service_state == 'OPERATIONAL' %}alert-success{% elif service_state == 'INCOMPLETE' %}alert-warning{% elif service_state == 'UNAVAILABLE' %}alert-danger{% else %}alert-info{% endif %} d-flex align-items-center" role="alert">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <div>
+                        <strong>Service Status: {{ service_state }}</strong>
+                        <span class="text-muted ms-2" id="clock"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats -->
+        <div class="row" id="dashboard">
+            <div class="col-12">
+                <h2 class="mb-4 fw-bold">Galaxy Registration Details</h2>
+                <p class="text-muted mb-4">Credentials and resource limits for connecting your cluster to Galaxy via PULSAR</p>
+            </div>
+
+            {% if pulsar_config %}
+            <!-- Configuration Items -->
+            <div class="col-lg-6 mb-4">
+                <div class="config-card card">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            PULSAR Username
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative">
+                            <div class="config-value" id="username">{{ pulsar_config.username }}</div>
+                            <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('username', this)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                            <div class="copy-success" id="username-success"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="config-card card">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            PULSAR Password
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative">
+                            <div class="config-value" id="password">{{ pulsar_config.password }}</div>
+                            <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('password', this)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                            <div class="copy-success" id="password-success"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="config-card card">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                                <line x1="6" y1="6" x2="6.01" y2="6"/>
+                                <line x1="6" y1="18" x2="6.01" y2="18"/>
+                            </svg>
+                            Allowed Max CPUs
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative">
+                            <div class="config-value" id="max_cpus">{{ pulsar_config.max_cpus }}</div>
+                            <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('max_cpus', this)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                            <div class="copy-success" id="max_cpus-success"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="config-card card">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Allowed Max RAM (GiB)
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative">
+                            <div class="config-value" id="max_ram_gib">{{ pulsar_config.max_ram_gib }}</div>
+                            <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('max_ram_gib', this)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                            <div class="copy-success" id="max_ram_gib-success"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="config-card card">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+                                <rect x="9" y="9" width="6" height="6"/>
+                                <line x1="9" y1="1" x2="9" y2="4"/>
+                                <line x1="15" y1="1" x2="15" y2="4"/>
+                                <line x1="9" y1="20" x2="9" y2="23"/>
+                                <line x1="15" y1="20" x2="15" y2="23"/>
+                                <line x1="20" y1="9" x2="23" y2="9"/>
+                                <line x1="20" y1="14" x2="23" y2="14"/>
+                                <line x1="1" y1="9" x2="4" y2="9"/>
+                                <line x1="1" y1="14" x2="4" y2="14"/>
+                            </svg>
+                            Allowed Max GPUs
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="position-relative">
+                            <div class="config-value" id="max_gpus">{{ pulsar_config.max_gpus }}</div>
+                            <button class="btn btn-sm btn-outline-primary copy-btn" onclick="copyToClipboard('max_gpus', this)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                            <div class="copy-success" id="max_gpus-success"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5">
+                <div class="alert {% if service_state == 'UNAVAILABLE' %}alert-danger{% else %}alert-warning{% endif %}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mb-3 {% if service_state == 'UNAVAILABLE' %}text-danger{% else %}text-warning{% endif %}">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    {% if service_state == 'UNAVAILABLE' %}
+                    <h4 class="fw-bold">Registration Details Not Available</h4>
+                    <p class="mb-0">The information needed to register your cluster with Galaxy is not present yet. The service state is <strong>UNAVAILABLE</strong> &mdash; please contact your administrator or wait for the service to be provisioned.</p>
+                    {% else %}
+                    <h4 class="fw-bold">Registration Details Not Found</h4>
+                    <p class="mb-0">The details for connecting your cluster to Galaxy are not present yet. Please contact your administrator or wait for the service to be provisioned.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if slurm_summary %}
+        <!-- Retrieved from Slurm -->
+        <div class="row mt-5" id="slurm">
+            <div class="col-12">
+                <h2 class="mb-4 fw-bold">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2 text-primary">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                    </svg>
+                    Retrieved from Slurm
+                </h2>
+                <p class="text-muted mb-4">Live capacity of your cluster &mdash; single node maximum and total across all {{ slurm_summary.node_count }} node(s).</p>
+
+                <!-- CPUs -->
+                <div class="col-lg-4 mb-4">
+                    <div class="stat-card card">
+                        <div class="card-body">
+                            <div class="feature-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+                                    <rect x="9" y="9" width="6" height="6"/>
+                                    <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
+                                    <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
+                                    <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
+                                    <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">{{ slurm_summary.max_cpus }}</div>
+                            <div class="stat-label">Max CPUs / node</div>
+                            <hr class="my-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Total CPUs</span>
+                                <span class="fw-bold">{{ slurm_summary.total_cpus }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RAM -->
+                <div class="col-lg-4 mb-4">
+                    <div class="stat-card card">
+                        <div class="card-body">
+                            <div class="feature-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">{{ slurm_summary.max_ram_gib }}</div>
+                            <div class="stat-label">Max RAM (GiB) / node</div>
+                            <hr class="my-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Total RAM</span>
+                                <span class="fw-bold">{{ slurm_summary.total_ram_gib }} GiB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPUs -->
+                <div class="col-lg-4 mb-4">
+                    <div class="stat-card card">
+                        <div class="card-body">
+                            <div class="feature-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                                    <line x1="6" y1="6" x2="6.01" y2="6"/>
+                                    <line x1="6" y1="18" x2="6.01" y2="18"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">{{ slurm_summary.max_gpus }}</div>
+                            <div class="stat-label">Max GPUs / node</div>
+                            <hr class="my-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Total GPUs</span>
+                                <span class="fw-bold">{{ slurm_summary.total_gpus }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- User Guide Section -->
+        <div class="row mt-5" id="readme">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                    <h2 class="mb-4 fw-bold">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2 text-primary">
+                            <path d="M4 19.5V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14.5"/>
+                            <path d="M6.5 2H20v20H6.5a2 2 0 0 0-2 2H2"/>
+                        </svg>
+                        How to register your cluster in Galaxy
+                    </h2>
+                    <p class="text-muted">Use the details above to register your Slurm cluster as an external compute resource in Galaxy (bring your own compute) &mdash; no dedicated Galaxy cloud site required:</p>
+                    <div class="row g-4 mt-2">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="badge bg-primary rounded-circle me-3 flex-shrink-0" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">1</div>
+                                <div>
+                                    <strong>Copy the PULSAR credentials</strong><br>
+                                    Use the copy buttons to grab the <code>PULSAR Username</code> and <code>PULSAR Password</code> for your cluster.
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="badge bg-primary rounded-circle me-3 flex-shrink-0" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">2</div>
+                                <div>
+                                    <strong>Open your Galaxy instance</strong><br>
+                                    Log in to your Galaxy instance where you want to run jobs on this cluster.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="badge bg-primary rounded-circle me-3 flex-shrink-0" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">3</div>
+                                <div>
+                                    <strong>Add the PULSAR endpoint</strong><br>
+                                    In Galaxy, configure the cluster as a remote / PULSAR execution target and paste the credentials into the respective fields.
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-start mb-3">
+                                <div class="badge bg-primary rounded-circle me-3 flex-shrink-0" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">4</div>
+                                <div>
+                                    <strong>Match your resource limits</strong><br>
+                                    Keep your job requests within the <code>Allowed Max CPUs</code>, <code>RAM</code> and <code>GPUs</code> shown above.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-4 mb-0">
+                        <small><strong>Tip:</strong> If Galaxy cannot reach your cluster, verify that your network allows traffic to the PULSAR service and that the credentials above are current.</small>
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container text-center">
+            <div class="row">
+                <div class="col-12">
+                    <p class="mb-0 text-white">&copy; {{ current_year }} / Galaxy PULSAR BYOC - SimpleVM</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="static/js/main.js"></script>
+</body>
+</html>
