@@ -40,6 +40,9 @@
         fail_msg: Set pulsar_message_queue_url to pyamqp://USER:PASSWORD@HOST:PORT//VHOST?ssl=1.
       when: pulsar_connection == 'mq'
 
+- name: Information page
+  ansible.builtin.import_playbook: info-page.yml
+
 - name: Common setup
   hosts: pulsar:workers
   become: true
@@ -226,3 +229,7 @@
     - name: Show the connection summary
       ansible.builtin.debug:
         msg: "{{ (_summary.content | b64decode).splitlines() }}"
+
+    - name: Mark the information page as operational
+      ansible.builtin.include_tasks: tasks/info_page_state.yml
+      when: pulsar_info_page | bool

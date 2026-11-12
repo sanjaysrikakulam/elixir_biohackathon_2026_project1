@@ -1,0 +1,10 @@
+{{ {
+  "service_state": pulsar_info_page_service_state,
+  "pulsar_config": {
+    "username": pulsar_info_page_username,
+    "password": pulsar_info_page_password,
+    "max_cpus": pulsar_max_cores | int,
+    "max_ram_gib": pulsar_max_mem_gb | int,
+    "max_gpus": pulsar_max_gpus | int
+  }
+} | to_nice_json }}

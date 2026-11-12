@@ -52,6 +52,26 @@ At the end of the run the playbook writes `/opt/pulsar/byoc-connection.yml` on t
 
 With the relay, the playbook also checks that Pulsar has connected. It signs in to the relay and waits for Pulsar's capability topic (`pulsar_capabilities`). On the central relay this only works after usegalaxy.eu has created the account, so a first run reports "relay login failed" in the summary instead of stopping. Run the playbook again after the PR is merged to confirm the connection.
 
+## Information page
+
+The playbook also sets up a small web page on the Pulsar host that shows the user what to enter in the Galaxy BYOC form: the username and password, the CPU, memory and GPU limits, and with SLURM the live capacity of the cluster. The page is the app in [`../fastapi-resenv`](../fastapi-resenv), the same one de.NBI SimpleVM shows its users. It is installed with the names and paths of the SimpleVM resenv ([`../pulsar-fastapi-deploy`](../pulsar-fastapi-deploy)): `/opt/pulsar-fastapi-resenv`, service `pulsar-resenv`.
+
+The page has no login of its own and shows the password, so it only listens on `127.0.0.1:8080`. A proxy that signs the user in makes it reachable: FORC on SimpleVM, nginx with SRAM on SURF Research Cloud. Without one, the user can open it through an SSH tunnel:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <user>@<pulsar host>   # then open http://127.0.0.1:8080
+```
+
+The page is set up by its own playbook, `info-page.yml`, which only needs the credentials and the hosts. A provider can run it as soon as the VM exists, so the user can fill in the Galaxy form while Pulsar is still being set up:
+
+```bash
+ansible-playbook info-page.yml -e @secrets.yml -e pulsar_connection=mq
+```
+
+The page then shows the status INCOMPLETE. `site.yml` runs the same playbook first and sets the status to OPERATIONAL once Pulsar is running.
+
+On a SimpleVM image the resenv has already installed the page. Set `pulsar_info_page_install: false` and `pulsar_info_page_host: 0.0.0.0` there: the playbook then only writes the user's values to `/opt/pulsar-fastapi-resenv/app/state.json` (mode 0640), which the page reads on every request. Set `pulsar_info_page: false` to leave the page out altogether.
+
 ## Usage
 
 The playbook runs from any machine that can reach the hosts over SSH, with a user that can `sudo` without a password. Install the roles, add the hosts and secrets, and run it:

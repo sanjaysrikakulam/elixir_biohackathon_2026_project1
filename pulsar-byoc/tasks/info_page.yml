@@ -1,0 +1,73 @@
+---
+- name: Install the information page
+  when: pulsar_info_page_install | bool
+  block:
+    - name: Create the information page user
+      # Same as the SimpleVM resenv (pulsar-fastapi-deploy/pulsar.yml)
+      ansible.builtin.user:
+        name: "{{ pulsar_info_page_user }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: /nonexistent
+
+    - name: Install what the information page needs
+      ansible.builtin.package:
+        name: "{{ pulsar_info_page_packages[ansible_os_family] }}"
+        state: present
+
+    - name: Create the information page directory
+      ansible.builtin.file:
+        path: "{{ pulsar_info_page_dir }}"
+        state: directory
+        owner: root
+        group: "{{ pulsar_info_page_user }}"
+        mode: "0750"
+
+    # From this repository; state.json holds per-host values and is written below
+    - name: Copy the information page
+      ansible.posix.synchronize:
+        src: "{{ pulsar_info_page_src }}"
+        dest: "{{ pulsar_info_page_dir }}/"
+        rsync_opts:
+          - "--exclude=app/state.json"
+          - "--exclude=.venv"
+          - "--exclude=__pycache__"
+          - "--chown=root:{{ pulsar_info_page_user }}"
+          - "--chmod=D750,F640"
+      register: _info_page_copy
+      # synchronize reports a change on every run; rsync lists files only when they changed
+      changed_when: _info_page_copy.msg | default('') | length > 0
+      notify: Restart the information page
+
+    - name: Install the information page's Python packages
+      ansible.builtin.pip:
+        requirements: "{{ pulsar_info_page_dir }}/requirements.txt"
+        virtualenv: "{{ pulsar_info_page_dir }}/.venv"
+        virtualenv_command: /usr/bin/python3 -m venv
+      notify: Restart the information page
+
+    # The SimpleVM resenv's unit, so both set up the same service
+    - name: Install the information page service
+      ansible.builtin.template:
+        src: "{{ pulsar_info_page_unit_template }}"
+        dest: "/etc/systemd/system/{{ pulsar_info_page_service }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        pulsar_vars:
+          service_user: "{{ pulsar_info_page_user }}"
+          app_dir: "{{ pulsar_info_page_dir }}"
+          service_host: "{{ pulsar_info_page_host }}"
+          service_port: "{{ pulsar_info_page_port }}"
+      notify: Restart the information page
+
+    - name: Start the information page
+      ansible.builtin.systemd:
+        name: "{{ pulsar_info_page_service }}.service"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+- name: Write the values the page shows
+  ansible.builtin.include_tasks: info_page_state.yml

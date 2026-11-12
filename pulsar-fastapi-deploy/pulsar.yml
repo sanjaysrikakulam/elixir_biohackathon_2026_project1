@@ -67,6 +67,25 @@
     dest: "{{ pulsar_vars.app_dir }}"
     version: "{{ pulsar_vars.app_version }}"
     force: yes
+  when: not pulsar_vars.app_src | default('')
+
+# With app_src set (e.g. ../fastapi-resenv in the project repository), the app
+# is copied from that directory instead of cloned. state.json is left alone.
+- name: Copy the PULSAR resenv application from a local directory
+  become: true
+  ansible.posix.synchronize:
+    src: "{{ pulsar_vars.app_src }}/"
+    dest: "{{ pulsar_vars.app_dir }}/"
+    rsync_opts:
+      - "--exclude=app/state.json"
+      - "--exclude=.venv"
+      - "--exclude=__pycache__"
+      - "--chown=root:{{ pulsar_vars.service_user }}"
+      - "--chmod=D750,F640"
+  register: _pulsar_app_copy
+  # synchronize reports a change on every run; rsync lists files only when they changed
+  changed_when: _pulsar_app_copy.msg | default('') | length > 0
+  when: pulsar_vars.app_src | default('')
 
 - name: Create the virtualenv for the service
   become: true
@@ -82,6 +101,7 @@
     virtualenv: "{{ pulsar_vars.app_dir }}/.venv"
     extra_args: --no-cache-dir
 
+# Only when there is none yet: a re-run must not replace the user's credentials
 - name: Ship a placeholder state.json (for testing; real creds are per-user)
   become: true
   ansible.builtin.copy:
@@ -90,6 +110,7 @@
     owner: root
     group: "{{ pulsar_vars.service_user }}"
     mode: "0640"
+    force: false
 
 - name: Install the systemd unit
   become: true

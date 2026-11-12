@@ -1,0 +1,20 @@
+---
+# Information page for the Galaxy BYOC form. Runs on its own (before Pulsar is
+# set up, so the user can fill in the form early) and as the first part of site.yml.
+# Facts of the workers give the CPU and memory limits it shows.
+
+- name: Information page for the Galaxy BYOC form
+  hosts: pulsar:workers
+  become: true
+  tasks:
+    - name: Set up the information page
+      ansible.builtin.include_tasks: tasks/info_page.yml
+      when:
+        - pulsar_info_page | bool
+        - inventory_hostname in groups['pulsar']
+  handlers:
+    - name: Restart the information page
+      ansible.builtin.systemd:
+        name: "{{ pulsar_info_page_service }}.service"
+        state: restarted
+        daemon_reload: true
