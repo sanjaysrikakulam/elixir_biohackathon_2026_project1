@@ -36,4 +36,4 @@ All values in the file must decrypt with the one vault password byoc-sync is giv
 
 ## The test.usegalaxy.be site
 
-[`../src/byoc_sync/sites/usegalaxy-be-test.yml`](../src/byoc_sync/sites/usegalaxy-be-test.yml) uses an inline vault and records owners by user id ([routing-by-user-id.md](routing-by-user-id.md)). Its anchors name the entry just before an older script's generated blocks, so new entries never land between that script's `BEGIN`/`END` markers.
+[`../src/byoc_sync/sites/usegalaxy-be-test.yml`](../src/byoc_sync/sites/usegalaxy-be-test.yml) uses an inline vault and records owners by user id ([routing-by-user-id.md](routing-by-user-id.md)). Its anchors name the entry just before an older script's generated blocks, so new entries never land between that script's `BEGIN`/`END` markers. Its destination template follows pulsar-byoc's layout: with `nfs_path` set, it sets the staging directory to `<nfs_path>/staging` and the container cache to `<nfs_path>/container_cache`. Apptainer's temporary files always go to the job's own temporary directory.

@@ -5,13 +5,14 @@
   max_accepted_mem: [[ req.max_mem ]]
   min_accepted_gpus: [[ req.min_gpus ]]
   max_accepted_gpus: [[ req.max_gpus ]]
-[% if req.nfs_path %]
   env:
-    SINGULARITY_CACHEDIR: [[ (req.nfs_path ~ "/var/database/container_cache") | q ]]
-    APPTAINER_CACHEDIR: [[ (req.nfs_path ~ "/var/database/container_cache") | q ]]
+    SINGULARITY_TMPDIR: $_GALAXY_JOB_TMP_DIR
+    APPTAINER_TMPDIR: $_GALAXY_JOB_TMP_DIR
+[% if req.nfs_path %]
+    SINGULARITY_CACHEDIR: [[ (req.nfs_path ~ "/container_cache") | q ]]
+    APPTAINER_CACHEDIR: [[ (req.nfs_path ~ "/container_cache") | q ]]
   params:
     jobs_directory: [[ (req.nfs_path ~ "/staging") | q ]]
-    persistence_directory: [[ (req.nfs_path ~ "/persisted_data") | q ]]
 [% endif %]
   scheduling:
     require:

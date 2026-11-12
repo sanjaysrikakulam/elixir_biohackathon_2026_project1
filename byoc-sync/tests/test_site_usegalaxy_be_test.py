@@ -115,13 +115,24 @@ def test_generated_entries(repo):
     assert dest["inherits"] == "_pulsar"
     assert dest["scheduling"]["require"] == ["alice01-byoc-pulsar"]
     assert dest["params"]["jobs_directory"] == "/data/share/staging"
-    assert dest["env"]["APPTAINER_CACHEDIR"] == "/data/share/var/database/container_cache"
+    assert dest["env"]["APPTAINER_CACHEDIR"] == "/data/share/container_cache"
+    assert dest["env"]["APPTAINER_TMPDIR"] == "$_GALAXY_JOB_TMP_DIR"
+    assert "persistence_directory" not in dest["params"]
     assert ALICE in dest["rules"][0]["if"]
     owners = yaml.safe_load(read(repo, "users"))["byoc_owners"]
     assert owners[ALICE] == {"name": "alice01"}
     vault = InlineVaultFile(repo.root / FILES["vault"], VAULT_PASSWORD)
     assert vault.get("rabbitmq_password_galaxy_alice01_byoc") == prefs()["byoc_pulsar|password"]
     assert vault.get("rabbitmq_password_galaxy_byoc_0e0fad4d103ae8ed") == "dummy-surf-password"
+
+
+def test_without_nfs_path_the_pulsar_defaults_stay(repo):
+    apply_all(repo, run(repo, [alice()]))
+    text = read(repo, "destinations")
+    start = text.index("  pulsar_alice01_byoc_tpv:")
+    dest = yaml.safe_load(text[start : text.index("\n\n", start)].replace("\n  ", "\n")[2:])["pulsar_alice01_byoc_tpv"]
+    assert dest["env"] == {"SINGULARITY_TMPDIR": "$_GALAXY_JOB_TMP_DIR", "APPTAINER_TMPDIR": "$_GALAXY_JOB_TMP_DIR"}
+    assert "params" not in dest
 
 
 def test_second_run_changes_nothing(repo):
