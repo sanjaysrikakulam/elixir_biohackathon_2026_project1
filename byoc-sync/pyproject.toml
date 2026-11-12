@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "byoc-sync"
+version = "0.1.0"
+description = "Sync Galaxy BYOC Pulsar user preferences into infrastructure-playbook pull requests"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+  "ansible-core>=2.16",  # VaultLib: the vault format's reference implementation
+  "bioblend>=1.9",       # Galaxy API client
+  "GitPython>=3.1.40",
+  "jinja2>=3.1",
+  "PyGithub>=2.6",
+  "requests>=2.31",
+  "ruamel.yaml>=0.18",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "ansible-lint>=25", "yamllint>=1.35", "shellcheck-py>=0.10"]
+tpv = ["total-perspective-vortex[cli]>=3"]
+
+[project.scripts]
+byoc-sync = "byoc_sync.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/byoc_sync"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "tpv: needs total-perspective-vortex + galaxy job libs",
+  "e2e: needs the local Galaxy test environment (BYOC_E2E=1)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["testenv/galaxy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]

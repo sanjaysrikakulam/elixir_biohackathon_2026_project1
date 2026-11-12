@@ -1,0 +1,8 @@
+# A hand-written users.yml entry for the same person, keyed the way admins write them.
+users:
+  alice@example.org:
+    rules:
+      - id: alice-handwritten-param
+        if: tool.id == "byoc_test_small"
+        params:
+          handwritten_marker: "kept"

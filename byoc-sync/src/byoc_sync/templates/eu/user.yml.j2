@@ -1,0 +1,20 @@
+[[ email_key | yaml_key ]]:
+  rules:
+    - id: [[ names.rule_id ]]
+[% if strict %]
+      if: |
+        byoc = mapper.destinations.get("[[ names.destination_id ]]")
+        tags = set(byoc.tpv_dest_tags.all_tag_values()) if byoc else set()
+        byoc is not None and set(entity.tpv_tags.require or []) <= tags and not (set(entity.tpv_tags.reject or []) & tags)
+      scheduling:
+        require:
+          - [[ names.tag ]]
+[% else %]
+      if: true
+      scheduling:
+        prefer:
+          - [[ names.tag ]]
+      rank: |
+        byoc = [d for d in candidate_destinations if d.id == "[[ names.destination_id ]]"]
+        byoc + helpers.weighted_random_sampling([d for d in candidate_destinations if d.id != "[[ names.destination_id ]]"])
+[% endif %]

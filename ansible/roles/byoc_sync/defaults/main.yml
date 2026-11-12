@@ -1,0 +1,79 @@
+---
+# byoc_sync role defaults. Every value can be changed by the installer.
+# Values set to "changeme" must be changed: the role stops and lists them otherwise.
+# Keep secrets in Ansible Vault (ansible-vault encrypt_string), never in plain text.
+
+# --- Always required --------------------------------------------------------------------------------------
+# Existing system user that owns and runs byoc-sync. The role does not create it.
+byoc_sync_user: changeme
+# Existing group of the folders and files the role creates (often the user's own group). The role does not
+# create it. The folders get the setgid bit, so what is created inside them gets this group too.
+byoc_sync_group: changeme
+# Git URL of byoc-sync itself.
+byoc_sync_repo_url: changeme
+# Virtualenv byoc-sync is installed into.
+byoc_sync_venv: changeme
+# Folder for the JSON reports, the cron log and the run lock.
+byoc_sync_reports_dir: changeme
+# Ansible Vault password of the infrastructure playbook (secret).
+byoc_sync_vault_password: changeme
+
+# --- Required when byoc_sync_cron_enabled is true ---------------------------------------------------------
+# Clone URL of the infrastructure playbook byoc-sync edits (--repo-url).
+byoc_sync_playbook_repo_url: changeme
+# Galaxy server URL (--galaxy-url); needed for byoc_sync_source: api.
+byoc_sync_galaxy_url: changeme
+# Galaxy admin API key (secret); needed for byoc_sync_source: api.
+byoc_sync_galaxy_api_key: changeme
+# GitHub repository OWNER/REPO for pull requests; needed when byoc_sync_dry_run is false.
+byoc_sync_github_repo: changeme
+# GitHub token that may push branches and open pull requests (secret); needed when byoc_sync_dry_run is false.
+byoc_sync_github_token: changeme
+
+# --- Installation -----------------------------------------------------------------------------------------
+# Branch, tag or commit of byoc-sync. Each run updates the clone to it; pin a tag or commit in production.
+byoc_sync_version: main
+# Where byoc-sync is cloned.
+byoc_sync_src_dir: "{{ byoc_sync_venv }}-src"
+# Install the "tpv" extra (needed for --validate-tpv).
+byoc_sync_install_tpv: false
+# Python command used to create the virtualenv; empty: the role picks the right one for the platform.
+byoc_sync_python: ""
+# Install git, Python and the other system packages. false: you provide them yourself.
+byoc_sync_manage_packages: true
+
+# --- Files ------------------------------------------------------------------------------------------------
+# Folder for the secret files (env, vault-password); owned by byoc_sync_user and byoc_sync_group, mode 2700.
+byoc_sync_config_dir: /etc/byoc-sync
+# The wrapper command that runs byoc-sync with the options below.
+byoc_sync_wrapper_path: /usr/local/bin/byoc-sync-run
+# byoc-sync's --workdir: where it clones the infrastructure playbook.
+byoc_sync_work_dir: "{{ byoc_sync_reports_dir }}/work"
+
+# --- byoc-sync options ------------------------------------------------------------------------------------
+# api (Galaxy admin API) or gxadmin (one SQL query; needs gxadmin and database access on this host).
+byoc_sync_source: api
+# Bundled site name (e.g. eu) or path of a site YAML on the host.
+byoc_sync_site_config: eu
+# Safe default: report what would change, push and publish nothing.
+byoc_sync_dry_run: true
+# Remove endpoints of users who cleared the form or were deleted, and apply renames.
+byoc_sync_allow_delete: false
+# --gxadmin-cmd, used with byoc_sync_source: gxadmin.
+byoc_sync_gxadmin_cmd: gxadmin
+# Further byoc-sync options, one list item per argument, e.g. ["--allow-list", "/etc/byoc-sync/allow.txt"].
+byoc_sync_extra_args: []
+# Extra environment variables for byoc-sync, e.g. PGHOST/PGUSER for gxadmin.
+byoc_sync_extra_env: {}
+# BYOC_SYNC_FINGERPRINT_KEY (secret): keys the request fingerprints in pull request bodies. Recommended.
+byoc_sync_fingerprint_key: ""
+
+# --- Cron -------------------------------------------------------------------------------------------------
+# Run byoc-sync from cron as byoc_sync_user. Off by default.
+byoc_sync_cron_enabled: false
+# Schedule: daily at midnight by default.
+byoc_sync_cron_minute: "0"
+byoc_sync_cron_hour: "0"
+byoc_sync_cron_day: "*"
+byoc_sync_cron_month: "*"
+byoc_sync_cron_weekday: "*"

@@ -1,0 +1,3 @@
+users:
+  admin@example.org:
+    cores: 2

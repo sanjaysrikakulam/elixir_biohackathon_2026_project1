@@ -1,0 +1,18 @@
+# Tools with fixed requirements so routing decisions are predictable.
+tools:
+  byoc_test_small:
+    cores: 4
+    mem: 8
+  byoc_test_big:
+    cores: 16
+    mem: 60
+  byoc_test_singularity:
+    cores: 2
+    mem: 4
+    scheduling:
+      require:
+        - singularity
+  byoc_test_gpu:
+    cores: 4
+    mem: 8
+    gpus: 1

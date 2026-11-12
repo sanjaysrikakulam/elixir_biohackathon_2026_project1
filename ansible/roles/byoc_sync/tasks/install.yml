@@ -1,0 +1,154 @@
+---
+# System packages, then byoc-sync from git into a virtualenv, owned by byoc_sync_user and byoc_sync_group
+# (setgid folders: what git and pip create inside them gets the group too).
+# What was installed is recorded in <venv>/.byoc-sync-installed (revision, extras, interpreter); byoc-sync is
+# reinstalled when any of them changes, and the record is written only after a successful install.
+
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: byoc_sync_manage_packages | bool and ansible_facts['os_family'] == 'Debian'
+
+- name: Install system packages
+  ansible.builtin.package:
+    name: "{{ _byoc_sync_packages }}"
+    state: present
+  when: byoc_sync_manage_packages | bool
+
+- name: Read the Python version
+  ansible.builtin.command:
+    argv: ["{{ _byoc_sync_python }}", "-c", "import platform; print(platform.python_version())"]
+  register: _byoc_sync_python_version
+  changed_when: false
+  check_mode: false
+
+- name: Stop when Python is too old
+  ansible.builtin.fail:
+    msg: >-
+      byoc-sync needs Python {{ _byoc_sync_min_python }} or newer; {{ _byoc_sync_python }} is
+      {{ _byoc_sync_python_version.stdout }} (set byoc_sync_python to a newer interpreter)
+  when: _byoc_sync_python_version.stdout is version(_byoc_sync_min_python, '<')
+
+- name: Read the git version
+  ansible.builtin.command:
+    argv: [git, --version]
+  register: _byoc_sync_git_version
+  changed_when: false
+  check_mode: false
+
+- name: Stop when git is too old
+  ansible.builtin.fail:
+    msg: "byoc-sync needs git {{ _byoc_sync_min_git }} or newer, found {{ _byoc_sync_git_version.stdout }}"
+  when: (_byoc_sync_git_version.stdout.split() | last) is version(_byoc_sync_min_git, '<')
+
+- name: Create the source and virtualenv folders
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ _byoc_sync_file_owner }}"
+    group: "{{ byoc_sync_group }}"
+    mode: "2755"
+  loop:
+    - "{{ byoc_sync_src_dir }}"
+    - "{{ byoc_sync_venv }}"
+
+- name: Clone byoc-sync and install it into the virtualenv
+  become: "{{ _byoc_sync_become }}"
+  become_user: "{{ byoc_sync_user }}"
+  vars:
+    _byoc_sync_record_file: "{{ byoc_sync_venv }}/.byoc-sync-installed"
+    _byoc_sync_extras: "{{ 'tpv' if byoc_sync_install_tpv | bool else '' }}"
+    # major.minor: a Python patch update must not rebuild the virtualenv.
+    _byoc_sync_interpreter: >-
+      {{ _byoc_sync_python }} {{ (_byoc_sync_python_version.stdout.split('.'))[:2] | join('.') }}
+  block:
+    - name: Clone byoc-sync {{ byoc_sync_version }}
+      ansible.builtin.git:
+        repo: "{{ byoc_sync_repo_url }}"
+        dest: "{{ byoc_sync_src_dir }}"
+        version: "{{ byoc_sync_version }}"
+        update: true
+
+    - name: Check the bundled site name
+      ansible.builtin.import_tasks: site_check.yml
+
+    - name: Read the checked-out revision
+      ansible.builtin.command:
+        argv: [git, -C, "{{ byoc_sync_src_dir }}", rev-parse, HEAD]
+      register: _byoc_sync_rev
+      changed_when: false
+      check_mode: false
+      # In check mode on a fresh host nothing has been cloned yet.
+      failed_when: _byoc_sync_rev.rc != 0 and not ansible_check_mode
+
+    - name: Read the install record
+      ansible.builtin.slurp:
+        src: "{{ _byoc_sync_record_file }}"
+      register: _byoc_sync_record_raw
+      failed_when: false
+      check_mode: false
+
+    - name: Read the virtualenv's Python
+      ansible.builtin.stat:
+        path: "{{ byoc_sync_venv }}/bin/python"
+        follow: true
+      register: _byoc_sync_venv_python
+      check_mode: false
+
+    - name: Work out what needs doing
+      ansible.builtin.set_fact:
+        _byoc_sync_record: >-
+          {{ dict((_byoc_sync_record_raw.content | default('') | b64decode).splitlines() | select('search', '=')
+                  | map('split', '=', 1)) }}
+        _byoc_sync_wanted:
+          rev: "{{ _byoc_sync_rev.stdout | default('') }}"
+          extras: "{{ _byoc_sync_extras }}"
+          python: "{{ _byoc_sync_interpreter }}"
+
+    - name: Create or rebuild the virtualenv
+      ansible.builtin.command:
+        argv: >-
+          {{ [_byoc_sync_python, '-m', 'venv']
+             + (['--clear'] if _byoc_sync_venv_python.stat.exists else [])
+             + [byoc_sync_venv] }}
+      when: >-
+        not _byoc_sync_venv_python.stat.exists
+        or _byoc_sync_record.get('python') != _byoc_sync_wanted.python
+      register: _byoc_sync_venv_made
+      changed_when: true
+
+    - name: Install byoc-sync when the revision, extras or interpreter changed
+      when: >-
+        not ansible_check_mode
+        and (_byoc_sync_venv_made is changed or _byoc_sync_record != _byoc_sync_wanted)
+      block:
+        - name: Install or update the dependencies
+          ansible.builtin.command:
+            argv:
+              - "{{ byoc_sync_venv }}/bin/pip"
+              - install
+              - --disable-pip-version-check
+              - --upgrade
+              - "{{ byoc_sync_src_dir }}{{ '[' ~ _byoc_sync_extras ~ ']' if _byoc_sync_extras else '' }}"
+          changed_when: true
+
+        - name: Reinstall byoc-sync itself from the checked-out revision
+          ansible.builtin.command:
+            argv:
+              - "{{ byoc_sync_venv }}/bin/pip"
+              - install
+              - --disable-pip-version-check
+              - --force-reinstall
+              - --no-deps
+              - "{{ byoc_sync_src_dir }}"
+          changed_when: true
+
+        - name: Record what was installed
+          ansible.builtin.copy:
+            content: |
+              rev={{ _byoc_sync_wanted.rev }}
+              extras={{ _byoc_sync_wanted.extras }}
+              python={{ _byoc_sync_wanted.python }}
+            dest: "{{ _byoc_sync_record_file }}"
+            mode: "0644"

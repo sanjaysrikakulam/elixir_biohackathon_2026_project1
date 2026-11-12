@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: byoc_sync
+  namespace: sanjaysrikakulam
+  author: Sanjay Srikakulam
+  description: Install and configure byoc-sync (Galaxy BYOC Pulsar preferences to infrastructure pull requests)
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+        - "10"
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - galaxy
+    - pulsar
+    - byoc
+dependencies: []

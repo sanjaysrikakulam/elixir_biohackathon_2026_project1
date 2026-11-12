@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Try byoc-sync locally, end to end, without GitHub.
+#
+#   scripts/bootstrap PLAYBOOK      PLAYBOOK: path or URL of an infrastructure-playbook checkout
+#   scripts/bootstrap --tests-only  just create the virtualenv and run the test suite
+#
+# It sets up, under testenv/state/:
+#   1. .venv with byoc-sync and its test dependencies;
+#   2. a throw-away Galaxy 26.1 on PostgreSQL (docker, no volumes) with test users who filled in the BYOC form;
+#   3. demo-origin.git and demo-playbook: a local copy of the playbook on branch "byoc-demo", whose vault is
+#      replaced by a dummy one (password in testenv/state/demo-vault-pass);
+# and then runs byoc-sync --dry-run against them. Nothing is pushed anywhere except demo-origin.git.
+#
+# The first run takes a while (Galaxy downloads its dependencies). Stop everything with: testenv/setup.sh down
+#
+# Needs: git, docker, curl and uv (https://docs.astral.sh/uv/).
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+state="$root/testenv/state"
+
+# Check the argument before anything slow starts. A local path is taken from the caller's folder.
+if [[ "${1:-}" != "--tests-only" ]]; then
+  if [[ $# -ne 1 ]]; then
+    sed -n '2,8p' "$0" >&2
+    exit 2
+  fi
+  playbook=$1
+  [[ -d "$playbook" ]] && playbook=$(cd "$playbook" && pwd)
+  # Accepts exactly what the "git clone" below accepts: a repository (not a folder inside one) or a URL.
+  if ! GIT_TERMINAL_PROMPT=0 git ls-remote -q "$playbook" HEAD >/dev/null 2>&1; then
+    echo "$playbook is not a git repository (give a checkout or clone URL of the infrastructure playbook)" >&2
+    exit 2
+  fi
+  echo "== Playbook: $playbook"
+fi
+cd "$root"
+
+command -v uv >/dev/null || { echo "uv is needed: https://docs.astral.sh/uv/getting-started/installation/" >&2; exit 1; }
+
+echo "== Python environment (.venv)"
+[[ -d .venv ]] || uv venv -q -p 3.12 .venv
+uv pip install -q -p .venv -e '.[dev,tpv]'
+
+if [[ "${1:-}" == "--tests-only" ]]; then
+  .venv/bin/pytest -q -p no:warnings
+  exit
+fi
+
+echo "== Galaxy 26.1 with test users"
+testenv/setup.sh up
+testenv/setup.sh seed phase1
+mkdir -p "$state"
+testenv/setup.sh admin-key > "$state/admin-api-key"
+
+echo "== Demo playbook (local origin, dummy vault)"
+rm -rf "$state/demo-origin.git" "$state/demo-playbook"
+git clone -q --bare "$playbook" "$state/demo-origin.git"
+git clone -q "$state/demo-origin.git" "$state/demo-playbook"
+openssl rand -hex 16 > "$state/demo-vault-pass"
+(
+  cd "$state/demo-playbook"
+  git checkout -q -b byoc-demo
+  "$root/.venv/bin/python" - "$state/demo-vault-pass" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+from ansible.parsing.vault import VaultLib, VaultSecret
+
+# A dummy vault holding the same variable names as the real one, so byoc-sync can decrypt and edit it.
+names = sorted(set(re.findall(r"rabbitmq_password_[a-z0-9_]+", Path("group_vars/mq.yml").read_text())))
+plain = "---\n# Dummy vault for trying byoc-sync\n" + "".join(f"{name}: 'dummy'\n" for name in names)
+secret = VaultSecret(Path(sys.argv[1]).read_text().strip().encode())
+Path("secret_group_vars/pulsar.yml").write_bytes(VaultLib([("default", secret)]).encrypt(plain.encode()))
+PY
+  git -c user.name=byoc-sync -c user.email=byoc-sync@localhost commit -q -am "Dummy vault for trying byoc-sync"
+  git push -q origin byoc-demo
+)
+
+echo "== byoc-sync --dry-run"
+export GALAXY_API_KEY BYOC_SYNC_VAULT_PASSWORD
+GALAXY_API_KEY=$(cat "$state/admin-api-key")
+BYOC_SYNC_VAULT_PASSWORD=$(cat "$state/demo-vault-pass")
+galaxy_url=$(testenv/setup.sh url)
+command=(.venv/bin/byoc-sync --galaxy-url "$galaxy_url" --repo-path "$state/demo-playbook"
+         --base-branch byoc-demo --dry-run)
+"${command[@]}"
+
+cat <<MSG
+
+Done. To run it again (change users at $galaxy_url, password "testpass123", or with
+"testenv/setup.sh seed phase2"):
+
+  export GALAXY_API_KEY=\$(cat testenv/state/admin-api-key)
+  export BYOC_SYNC_VAULT_PASSWORD=\$(cat testenv/state/demo-vault-pass)
+  ${command[*]}
+
+Stop Galaxy and PostgreSQL with: testenv/setup.sh down
+MSG

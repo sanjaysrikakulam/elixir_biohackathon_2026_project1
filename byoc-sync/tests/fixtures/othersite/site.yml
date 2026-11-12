@@ -1,0 +1,20 @@
+# A deployment that keeps plain YAML files and names things differently.
+section: byoc_pulsar
+base_branch: main
+templates: templates/plain
+site: {mq_host: amqp.example.org, mq_port: 5671, galaxy_url: https://galaxy.example.org}
+naming:
+  mq_user: "byoc_{x}"
+  vhost: "/byoc/{x}"
+  vault_var: "vault_mq_byoc_{x}"
+  runner_id: "byoc_runner_{x}"
+  destination_id: "byoc_{x}"
+  tag: "byoc-{x_dash}"
+  rule_id: "byoc-{x_dash}"
+  branch: "byoc/{x}"
+targets:
+  mq: {file: vars/mq.yml, path: [mq, users], field: name, id: mq_user, template: mq.yml.j2, anchor: "^byoc_"}
+  job_conf: {file: vars/runners.yml, path: [runners], id: runner_id, template: runner.yml.j2, anchor: "^byoc_"}
+  destinations: {file: tpv/destinations.yml, path: [destinations], id: destination_id, template: destination.yml.j2, anchor: "^remote_"}
+  users: {file: tpv/users.yml, path: [users], id: email_key, template: user.yml.j2, anchor: "$^"}
+vault: {file: vars/vault.yml}

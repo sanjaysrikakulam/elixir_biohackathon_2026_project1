@@ -1,0 +1,47 @@
+---
+# Optional cron job (byoc_sync_cron_enabled). Turning it off removes only the entry named byoc-sync.
+
+- name: Build the cron job line
+  ansible.builtin.import_tasks: cron_vars.yml
+
+- name: Install and start cron
+  when: _byoc_sync_manage_cron | bool and byoc_sync_cron_enabled | bool
+  block:
+    - name: Install the cron package
+      ansible.builtin.package:
+        name: "{{ _byoc_sync_cron_package }}"
+        state: present
+      when: byoc_sync_manage_packages | bool
+
+    - name: Start cron and enable it at boot
+      ansible.builtin.service:
+        name: "{{ _byoc_sync_cron_service }}"
+        state: started
+        enabled: true
+
+    - name: Add the byoc-sync cron job
+      ansible.builtin.cron:
+        name: byoc-sync
+        user: "{{ byoc_sync_user }}"
+        minute: "{{ byoc_sync_cron_minute }}"
+        hour: "{{ byoc_sync_cron_hour }}"
+        day: "{{ byoc_sync_cron_day }}"
+        month: "{{ byoc_sync_cron_month }}"
+        weekday: "{{ byoc_sync_cron_weekday }}"
+        job: "{{ _byoc_sync_cron_job }}"
+        state: present
+
+- name: Remove the byoc-sync cron job
+  when: _byoc_sync_manage_cron | bool and not byoc_sync_cron_enabled | bool
+  block:
+    - name: Look for the crontab command
+      ansible.builtin.stat:
+        path: /usr/bin/crontab
+      register: _byoc_sync_crontab
+
+    - name: Remove the cron job named byoc-sync
+      ansible.builtin.cron:
+        name: byoc-sync
+        user: "{{ byoc_sync_user }}"
+        state: absent
+      when: _byoc_sync_crontab.stat.exists

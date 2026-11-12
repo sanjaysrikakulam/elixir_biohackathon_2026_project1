@@ -1,0 +1,24 @@
+---
+# Pick packages, Python and cron for this platform; stop on an unsupported one.
+
+- name: Work out the platform key
+  ansible.builtin.set_fact:
+    _byoc_sync_platform_key: >-
+      {{ ansible_facts['distribution'] ~ '-' ~ (ansible_facts['distribution_version']
+         if ansible_facts['distribution'] == 'Ubuntu' else ansible_facts['distribution_major_version']) }}
+
+- name: Stop on an unsupported platform
+  ansible.builtin.fail:
+    msg: >-
+      byoc_sync supports Rocky/AlmaLinux 9 and 10 and Ubuntu 22.04 and 24.04,
+      not {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+  when: _byoc_sync_platform_key not in _byoc_sync_platforms
+
+- name: Choose packages, Python and cron for {{ _byoc_sync_platform_key }}
+  ansible.builtin.set_fact:
+    _byoc_sync_packages: "{{ _byoc_sync_platforms[_byoc_sync_platform_key]['packages'] }}"
+    _byoc_sync_python: >-
+      {{ byoc_sync_python if byoc_sync_python | string | trim
+         else _byoc_sync_platforms[_byoc_sync_platform_key]['python'] }}
+    _byoc_sync_cron_package: "{{ _byoc_sync_platforms[_byoc_sync_platform_key]['cron_package'] }}"
+    _byoc_sync_cron_service: "{{ _byoc_sync_platforms[_byoc_sync_platform_key]['cron_service'] }}"

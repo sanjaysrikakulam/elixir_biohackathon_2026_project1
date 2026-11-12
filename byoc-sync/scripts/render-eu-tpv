@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Render usegalaxy.eu's TPV templates the same way the playbook's CI does (.github/workflows/tpv.yml), and
+# optionally run `tpv lint` on the result.
+#
+# usage: scripts/render-eu-tpv PLAYBOOK_CHECKOUT OUTPUT_DIR [--lint]
+#
+# PLAYBOOK_CHECKOUT is copied, never modified. The copy gets the `mounts` submodule at its latest commit
+# (CI uses `--remote`), a throw-away vault password, and the vault files CI deletes are deleted. The rendered
+# TPV files end up in OUTPUT_DIR/files/galaxy/tpv; the playbook's job_conf vars file is copied next to them.
+#
+# Needs: git, rsync, make, openssl, uv (to build a private venv with the playbook's pinned ansible-core).
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "usage: $0 PLAYBOOK_CHECKOUT OUTPUT_DIR [--lint]" >&2
+  exit 2
+fi
+src=$(realpath "$1")
+out=$(realpath -m "$2")
+lint=${3:-}
+here=$(dirname "$(realpath "$0")")
+uv=${UV:-$(command -v uv || echo "$HOME/.local/bin/uv")}
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+git clone -q "$src" "$work/playbook"
+# Render the working tree as it is (including uncommitted edits), not just the last commit.
+rsync -a --exclude .git --exclude mounts "$src"/ "$work/playbook"/
+cd "$work/playbook"
+
+mounts_url=$(git config -f .gitmodules submodule.mounts.url)
+git clone -q "$mounts_url" mounts
+
+"$uv" venv -q -p python3 "$work/venv"
+ansible_pin=$(grep -E '^ansible-core' requirements.txt || echo ansible-core)
+"$uv" pip install -q -p "$work/venv" "$ansible_pin" jinja2-ansible-filters pyyaml
+export PATH="$work/venv/bin:$PATH" EDITOR=true
+
+(cd mounts && make -s dest/all.yml >/dev/null)
+rm -f group_vars/htcondor/vault.yml group_vars/htcondor-secondary/vault.yml group_vars/all/ssh-keys_vault.yml
+openssl rand -base64 24 > .vault_password
+
+# make_playbook() shells out to `ansible-vault create`, which is noisy without a TTY; keep only the path.
+python - "$work/playbook_path" >"$work/make_playbook.log" 2>&1 <<'PY'
+import glob
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("tpv_ci", ".github/workflows/tpv.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+templates = tuple(
+    (f, ".".join(f.split(".")[:-1]))
+    for f in glob.glob("files/galaxy/tpv/*.yaml.j2") + glob.glob("files/galaxy/tpv/*.yml.j2")
+)
+with open(sys.argv[1], "w") as handle:
+    handle.write(str(module.make_playbook("sn09.yml", templates=templates)))
+PY
+playbook=$(cat "$work/playbook_path")
+(cd "$(dirname "$playbook")" && ansible-playbook --connection=local "$(basename "$playbook")" >"$work/ansible.log" 2>&1) || {
+  tail -20 "$work/ansible.log" >&2
+  exit 1
+}
+
+rendered=$(dirname "$playbook")
+mkdir -p "$out/files/galaxy"
+rm -rf "$out/files/galaxy/tpv"
+cp -r "$rendered/files/galaxy/tpv" "$out/files/galaxy/tpv"
+rm -f "$out"/files/galaxy/tpv/*.j2
+mkdir -p "$out/templates/galaxy/config"
+cp "$rendered/templates/galaxy/config/job_conf.yml" "$out/templates/galaxy/config/job_conf.yml"
+rm -rf "$(dirname "$rendered")"
+echo "rendered TPV configuration: $out/files/galaxy/tpv"
+
+if [[ "$lint" == "--lint" ]]; then
+  tpv=${TPV:-$here/../.venv/bin/tpv}
+  (cd "$out" && "$tpv" lint files/galaxy/tpv/*.yml)
+fi

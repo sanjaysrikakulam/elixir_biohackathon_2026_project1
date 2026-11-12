@@ -1,0 +1,5 @@
+mq:
+  host: amqp.example.org
+  users:
+    - name: galaxy
+      vhost: /galaxy
