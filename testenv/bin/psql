@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# psql for gxadmin in the test environment: runs psql inside the PostgreSQL container.
-exec docker exec -i "${PG_CONTAINER:-byoc-sync-pg}" psql -U galaxy -d galaxy "$@"

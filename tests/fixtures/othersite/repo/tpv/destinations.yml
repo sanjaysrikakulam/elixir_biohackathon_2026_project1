@@ -1,8 +1,0 @@
-destinations:
-  slurm:
-    runner: slurm
-
-  remote_cluster:
-    runner: pulsar
-
-# end of destinations

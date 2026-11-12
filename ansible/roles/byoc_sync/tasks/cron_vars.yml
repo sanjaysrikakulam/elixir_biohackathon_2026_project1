@@ -1,6 +1,0 @@
----
-- name: Build the cron job line
-  ansible.builtin.set_fact:
-    _byoc_sync_cron_job: >-
-      umask 077; {{ byoc_sync_wrapper_path | string | quote }} >>
-      {{ (byoc_sync_reports_dir ~ '/byoc-sync.log') | string | quote }} 2>&1

@@ -1,0 +1,13 @@
+.superpowers/
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.coverage
+byoc-sync/testenv/galaxy/
+byoc-sync/testenv/state/
+byoc-sync/testenv/bin/gxadmin
+byoc-sync/testenv/galaxy.log
+.verify/
+.mypy_cache/
+.ruff_cache/
