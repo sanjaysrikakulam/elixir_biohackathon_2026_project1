@@ -3,11 +3,12 @@
   when: pulsar_info_page_install | bool
   block:
     - name: Create the information page user
+      # Same as the SimpleVM resenv (pulsar-fastapi-deploy/pulsar.yml)
       ansible.builtin.user:
         name: "{{ pulsar_info_page_user }}"
         system: true
-        create_home: false
         shell: /usr/sbin/nologin
+        home: /nonexistent
 
     - name: Install what the information page needs
       ansible.builtin.package:
@@ -45,13 +46,20 @@
         virtualenv_command: /usr/bin/python3 -m venv
       notify: Restart the information page
 
+    # The SimpleVM resenv's unit, so both set up the same service
     - name: Install the information page service
       ansible.builtin.template:
-        src: templates/pulsar-info.service.j2
+        src: "{{ pulsar_info_page_unit_template }}"
         dest: "/etc/systemd/system/{{ pulsar_info_page_service }}.service"
         owner: root
         group: root
         mode: "0644"
+      vars:
+        pulsar_vars:
+          service_user: "{{ pulsar_info_page_user }}"
+          app_dir: "{{ pulsar_info_page_dir }}"
+          service_host: "{{ pulsar_info_page_host }}"
+          service_port: "{{ pulsar_info_page_port }}"
       notify: Restart the information page
 
     - name: Start the information page

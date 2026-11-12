@@ -8,6 +8,9 @@ pulsar_vars:
   app_repo: https://github.com/SimpleVM/pulsar-fastapi-resenv.git
   app_version: main
   app_dir: /opt/pulsar-fastapi-resenv
+  # Copy the app from this directory instead of cloning app_repo
+  # (e.g. the fastapi-resenv directory of the project repository).
+  # app_src: ../fastapi-resenv
 
   # Service configuration.
   service_user: pulsar-resenv

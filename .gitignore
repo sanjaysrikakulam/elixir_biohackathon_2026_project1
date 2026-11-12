@@ -11,3 +11,5 @@ byoc-sync/testenv/galaxy.log
 .verify/
 .mypy_cache/
 .ruff_cache/
+# per-host credentials of the information page; see state.json.example
+fastapi-resenv/app/state.json

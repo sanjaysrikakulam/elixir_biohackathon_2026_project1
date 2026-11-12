@@ -8,6 +8,7 @@ pulsar_info_page: true
 # ../pulsar-fastapi-deploy): then only the values are written
 pulsar_info_page_install: true
 pulsar_info_page_src: "{{ playbook_dir }}/../fastapi-resenv/"
+pulsar_info_page_unit_template: "{{ playbook_dir }}/../pulsar-fastapi-deploy/pulsar-resenv.service.j2"
 # Same names and paths as the SimpleVM resenv
 pulsar_info_page_dir: /opt/pulsar-fastapi-resenv
 pulsar_info_page_user: pulsar-resenv
