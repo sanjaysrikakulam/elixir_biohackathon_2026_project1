@@ -71,6 +71,9 @@ At provisioning time, write `app/state.json` (mode `0640`) with the user's
 values, then set `service_state` to `OPERATIONAL`. Until then the service
 shows the `INCOMPLETE`/`UNAVAILABLE` view.
 
+`nfs_path`, Pulsar's shared directory, is optional. When it is set, the page
+shows it too, for the `nfs_path` field of the BYOC form.
+
 ## Project structure
 
 This repository is a **pure application** - it contains no deployment or

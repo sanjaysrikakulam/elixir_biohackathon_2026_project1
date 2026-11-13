@@ -4,7 +4,8 @@
     "password": "REPLACE_ME",
     "max_cpus": 0,
     "max_ram_gib": 0,
-    "max_gpus": 0
+    "max_gpus": 0,
+    "nfs_path": "REPLACE_ME"
   },
   "service_state": "INCOMPLETE"
 }
