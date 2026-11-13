@@ -22,6 +22,6 @@ pulsar_info_page_packages:
 
 # Values shown on the page
 pulsar_info_page_username: >-
-  {{ pulsar_message_queue_url | urlsplit('username') if pulsar_connection == 'mq' else pulsar_relay_username_final }}
+  {{ pulsar_endpoint_name if pulsar_connection == 'mq' else pulsar_relay_username_final }}
 pulsar_info_page_password: >-
   {{ pulsar_message_queue_url | urlsplit('password') if pulsar_connection == 'mq' else pulsar_relay_password }}

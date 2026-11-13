@@ -5,6 +5,9 @@ pulsar_scheduler: slurm
 # mq (RabbitMQ) or relay (pulsar-relay over HTTPS)
 pulsar_connection: mq
 
+# mq only: the name for the BYOC form's username field. byoc-sync names the RabbitMQ account galaxy_<name>_byoc.
+pulsar_endpoint_name: "{{ pulsar_message_queue_url | urlsplit('username') | regex_replace('^galaxy_(.+)_byoc$', '\\1') }}"
+
 # relay only: central (usegalaxy.eu's relay, account byoc_<Galaxy user id>) or own
 pulsar_relay_placement: central
 pulsar_relay_central_url: https://stargate.galaxyproject.eu
