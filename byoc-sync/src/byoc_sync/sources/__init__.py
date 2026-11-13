@@ -23,8 +23,8 @@ class ScanResult:
     # False when too many users could not be read; callers must not write or delete anything then.
     complete: bool = True
     errors: list[str] = field(default_factory=list)
-    # E-mails of users whose preferences mention the section but could not be parsed. Never treat them as
-    # "removed": their config stays as it is.
+    # E-mails and Galaxy user ids of users whose preferences mention the section but could not be parsed.
+    # Never treat them as "removed": their config stays as it is.
     unreadable: set[str] = field(default_factory=set)
     galaxy_version: str | None = None
 
@@ -33,3 +33,5 @@ class Source(Protocol):
     def scan(self) -> ScanResult: ...
 
     def lookup(self, email: str) -> UserRecord | None: ...
+
+    def lookup_id(self, galaxy_id: str) -> UserRecord | None: ...

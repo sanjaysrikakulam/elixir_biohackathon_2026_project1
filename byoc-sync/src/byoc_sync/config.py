@@ -19,6 +19,9 @@ from .naming import SINGLE_BRANCH, NamingConfig
 SITES_DIR = Path(__file__).parent / "sites"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TARGET_KEYS = ("mq", "job_conf", "destinations", "users")
+# How byoc-sync knows who owns an endpoint: by e-mail (TPV users.yml keys) or by Galaxy user id (a file only
+# byoc-sync reads, routing by a fixed TPV rule). See docs/routing-by-user-id.md.
+OWNER_KEYS = ("email", "galaxy_id")
 
 
 class ConfigError(ValueError):
@@ -77,6 +80,7 @@ class SiteConfig:
     targets: dict[str, TargetSpec]
     vault_file: str
     user_preferences_file: str | None = None
+    owner_key: str = "email"
     source: str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
@@ -102,6 +106,13 @@ class SiteConfig:
                 )
         if self.base_branch == SINGLE_BRANCH or self.base_branch.startswith(SINGLE_BRANCH + "/"):
             raise ConfigError(f"{where}base_branch {self.base_branch!r} clashes with the --single-pr branch")
+        if self.owner_key not in OWNER_KEYS:
+            raise ConfigError(f"{where}owner_key must be one of {', '.join(OWNER_KEYS)}, got {self.owner_key!r}")
+        users_id = self.targets["users"].id if "users" in self.targets else None
+        if self.owner_key == "galaxy_id" and users_id != "owner_key":
+            raise ConfigError(f"{where}with owner_key: galaxy_id, targets.users.id must be owner_key")
+        if self.owner_key == "email" and users_id not in (None, "email_key", "owner_key"):
+            raise ConfigError(f"{where}targets.users.id must be email_key or owner_key")
 
     @staticmethod
     def builtin_path(name: str) -> Path:
@@ -152,5 +163,6 @@ class SiteConfig:
             targets=targets,
             vault_file=raw["vault"]["file"],
             user_preferences_file=raw.get("user_preferences_file"),
+            owner_key=raw.get("owner_key", "email"),
             source=source,
         )
