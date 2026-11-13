@@ -2,7 +2,7 @@
 # Passwords are not listed: use the one you chose for this Pulsar.
 transport: {{ pulsar_connection }}
 {% if pulsar_connection == 'mq' %}
-username: {{ pulsar_message_queue_url | urlsplit('username') }}
+username: {{ pulsar_endpoint_name }}
 {% else %}
 relay_placement: {{ pulsar_relay_placement }}
 {% if pulsar_relay_placement == 'own' %}

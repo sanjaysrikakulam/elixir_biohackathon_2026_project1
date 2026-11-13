@@ -48,7 +48,7 @@ A host can be in both the `pulsar` and `workers` groups. That gives a single-VM 
 
 ## Connection summary
 
-At the end of the run the playbook writes `/opt/pulsar/byoc-connection.yml` on the Pulsar host and prints it. It lists the values the user enters in the BYOC form: the transport, the relay or RabbitMQ account, the shared directory (`nfs_path`) and the CPU and memory limits of the largest worker. It holds no passwords. A provider such as SimpleVM can show this file to the user.
+At the end of the run the playbook writes `/opt/pulsar/byoc-connection.yml` on the Pulsar host and prints it. It lists the values the user enters in the BYOC form: the transport, the relay account or, for RabbitMQ, the endpoint name (`<name>` of the account `galaxy_<name>_byoc`), the shared directory (`nfs_path`) and the CPU and memory limits of the largest worker. It holds no passwords. A provider such as SimpleVM can show this file to the user.
 
 With the relay, the playbook also checks that Pulsar has connected. It signs in to the relay and waits for Pulsar's capability topic (`pulsar_capabilities`). On the central relay this only works after usegalaxy.eu has created the account, so a first run reports "relay login failed" in the summary instead of stopping. Run the playbook again after the PR is merged to confirm the connection.
 
