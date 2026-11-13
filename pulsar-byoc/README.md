@@ -85,6 +85,24 @@ ansible-playbook site.yml -e @secrets.yml -e pulsar_scheduler=slurm -e pulsar_co
 
 Set `pulsar_nfs_network` to the subnet of your hosts. The other defaults are in `group_vars/all/`, one file for each topic.
 
+## Existing clusters
+
+On a cluster that already has a scheduler, shared storage or container tools, the playbook can leave those alone and only add Pulsar. Three switches, all on by default, choose what it installs:
+
+- `pulsar_install_shared_dir`: the NFS export from the Pulsar host. When off, `pulsar_shared_dir` must already be a directory shared between the Pulsar host and the workers.
+- `pulsar_install_scheduler`: SLURM or HTCondor. When off, the Pulsar host must already be a submit host of the cluster, and the `pulsar` user must exist on the workers with uid `pulsar_user_uid`.
+- `pulsar_install_worker_software`: CVMFS and Apptainer on the workers. When off, the workers need `apptainer` or `singularity`, and `/cvmfs/data.galaxyproject.org` unless `pulsar_cvmfs` is false.
+
+The Pulsar host itself is always set up: Pulsar, `slurm-drmaa` for SLURM, the information page and the TCP setting below. For each part that is not installed, the playbook checks that the cluster provides it and stops with a message that says what is missing:
+
+```bash
+ansible-playbook site.yml -e @secrets.yml -e pulsar_scheduler=slurm -e pulsar_connection=mq \
+  -e pulsar_install_shared_dir=false -e pulsar_install_scheduler=false \
+  -e pulsar_install_worker_software=false -e pulsar_shared_dir=/vol/spool
+```
+
+With SLURM, `slurm-drmaa` comes from the Galaxy package source and is built against the distribution's SLURM. A cluster that runs a different SLURM version may need its own `slurm-drmaa` build; set `pulsar_drmaa_library_path` to it.
+
 ## Tested platforms
 
 Both platforms below ran the full playbook with SLURM on a single VM (Ubuntu 22.04). A test job ran as the `pulsar` user and wrote to the shared staging directory. The connection to a real Galaxy has not been tested yet.
