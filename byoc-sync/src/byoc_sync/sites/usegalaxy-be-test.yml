@@ -1,0 +1,56 @@
+# Site configuration for test.usegalaxy.be in usegalaxy-be/infrastructure-playbook.
+# Paths are relative to the playbook checkout; "path" is where the collection lives inside the file.
+# Owners are recorded by Galaxy user id (the repository is public) and the TPV rule from
+# galaxy-side/tpv/byoc_rule.yml routes jobs by the name in the form.
+section: byoc_pulsar
+user_preferences_file: files/galaxy/config/test.usegalaxy.be/user_preferences_extra_conf.yml
+base_branch: main
+templates: usegalaxy-be
+owner_key: galaxy_id
+site:
+  # Galaxy reaches RabbitMQ locally; users' Pulsars use test.usegalaxy.be:59871 (see the form).
+  mq_host: 127.0.0.1
+  mq_port: 5671
+  galaxy_url: https://test.usegalaxy.be
+naming:
+  mq_user: galaxy_{x}_byoc
+  vhost: /pulsar/galaxy_{x}_byoc
+  vault_var: rabbitmq_password_galaxy_{x}_byoc
+  runner_id: pulsar_{x}_byoc
+  destination_id: pulsar_{x}_byoc_tpv
+  tag: "{x_dash}-byoc-pulsar"
+  rule_id: byoc-pulsar-{x_dash}
+  branch: "{x}_byoc_ci"
+# The anchors name the entry just before the older BYOC script's blocks, so new entries never land
+# inside its BEGIN/END markers. Once byoc-sync has added one entry, the anchors match its entries.
+targets:
+  mq:
+    file: inventories/host_vars/test.usegalaxy.be/messaging.yml
+    path: [rabbitmq_users]
+    field: user
+    id: mq_user
+    template: mq_user.yml.j2
+    anchor: "^(pulsar_sl01|galaxy_.+_byoc)$"
+  job_conf:
+    file: inventories/host_vars/test.usegalaxy.be/galaxy_job_conf.yml
+    path: [galaxy_job_config, runners]
+    id: runner_id
+    template: runner.yml.j2
+    anchor: "^(pulsar_sl01|pulsar_.+_byoc)$"
+  destinations:
+    file: templates/galaxy/config/tpv/destinations.yml.j2
+    path: [destinations]
+    id: destination_id
+    template: destination.yml.j2
+    anchor: "^(pulsar_sanjay_tpv|pulsar_.+_byoc_tpv)$"
+  users:
+    file: files/byoc/test.usegalaxy.be/byoc_owners.yml
+    path: [byoc_owners]
+    id: owner_key
+    template: owner.yml.j2
+    anchor: "$^"
+vault:
+  file: inventories/host_vars/test.usegalaxy.be/byoc.yml
+  format: inline
+  vault_id: byoc
+  anchor: "^(tpv_byoc_enabled|rabbitmq_password_galaxy_.+_byoc)$"

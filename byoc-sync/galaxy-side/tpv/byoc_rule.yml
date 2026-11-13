@@ -1,0 +1,26 @@
+---
+# TPV rule for byoc-sync's user-id routing (site setting `owner_key: galaxy_id`).
+# Add it once to the rules of the default tool entity (e.g. tool_defaults.yml).
+# It sends a user's jobs to their own BYOC endpoint, without a per-user entry
+# keyed by e-mail. The tag must match the site's `naming.tag` ("{x_dash}-byoc-pulsar"
+# by default). The generated destination checks that the job's owner is the
+# user who registered the endpoint (see docs/routing-by-user-id.md).
+tools:
+  default:
+    rules:
+      - id: byoc_pulsar
+        if: |
+          retval = False
+          if user is not None and "internal" not in {tag.value for tag in entity.tpv_tags.tags}:
+              name = (user.extra_preferences.get("byoc_pulsar|username") or "").strip().lower()
+              if name:
+                  byoc_tag = name.replace("_", "-") + "-byoc-pulsar"
+                  retval = any(any(d.tpv_dest_tags.filter(tag_value=byoc_tag)) for d in mapper.destinations.values())
+          retval
+        execute: |
+          from tpv.core.entities import SchedulingTags
+
+          name = user.extra_preferences.get("byoc_pulsar|username").strip().lower()
+          entity.tpv_tags = entity.tpv_tags.combine(
+              SchedulingTags(require=[name.replace("_", "-") + "-byoc-pulsar"])
+          )

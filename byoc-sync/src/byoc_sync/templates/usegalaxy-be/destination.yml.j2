@@ -1,0 +1,25 @@
+[[ names.destination_id ]]:
+  inherits: _pulsar
+  runner: [[ names.runner_id ]]
+  max_accepted_cores: [[ req.max_cores ]]
+  max_accepted_mem: [[ req.max_mem ]]
+  min_accepted_gpus: [[ req.min_gpus ]]
+  max_accepted_gpus: [[ req.max_gpus ]]
+  env:
+    SINGULARITY_TMPDIR: $_GALAXY_JOB_TMP_DIR
+    APPTAINER_TMPDIR: $_GALAXY_JOB_TMP_DIR
+[% if req.nfs_path %]
+    SINGULARITY_CACHEDIR: [[ (req.nfs_path ~ "/container_cache") | q ]]
+    APPTAINER_CACHEDIR: [[ (req.nfs_path ~ "/container_cache") | q ]]
+  params:
+    jobs_directory: [[ (req.nfs_path ~ "/staging") | q ]]
+[% endif %]
+  scheduling:
+    require:
+      - [[ names.tag ]]
+  rules:
+    - id: byoc-owner-guard
+      if: [[ ("user is None or " ~ (galaxy_id | pystr) ~ " not in (str(user.id), app.security.encode_id(user.id))") | q ]]
+      execute: |
+        from tpv.core.entities import TryNextDestinationOrFail
+        raise TryNextDestinationOrFail("[[ names.destination_id ]] only accepts jobs of its owner")

@@ -1,0 +1,37 @@
+---
+# The byoc_pulsar section of user_preferences_extra_conf.yml (under `preferences:`).
+# Inputs must stay plain (no `store: vault`): byoc-sync reads them through the API or gxadmin.
+byoc_pulsar:
+  description: >
+    Bring your own Pulsar endpoint. Pick a name and a RabbitMQ password for your Pulsar; it logs in to
+    RABBITMQ_HOST:PORT as galaxy_<name>_byoc on the vhost /pulsar/galaxy_<name>_byoc.
+    An administrator reviews every new or changed endpoint before Galaxy sends jobs to it.
+  inputs:
+    - name: username
+      label: "Name of your endpoint, 3-32 lower-case letters, digits or '_' (e.g. alice01)."
+      type: text
+      required: False
+    - name: password
+      label: "RabbitMQ password for your Pulsar, at least 10 letters or digits."
+      type: password
+      required: False
+    - name: max_accepted_cores
+      label: Maximum number of CPU cores per job.
+      type: number
+      required: False
+    - name: max_accepted_mem
+      label: Maximum memory per job (in GB).
+      type: number
+      required: False
+    - name: min_accepted_gpus
+      label: Minimum number of GPUs (0 if you do not share GPUs).
+      type: number
+      required: False
+    - name: max_accepted_gpus
+      label: Maximum number of GPUs (0 if you do not share GPUs).
+      type: number
+      required: False
+    - name: nfs_path
+      label: Path of the NFS share your Pulsar uses for staging, persisted data and the container cache (e.g. /data/share).
+      type: text
+      required: False

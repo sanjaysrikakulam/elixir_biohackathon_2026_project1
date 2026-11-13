@@ -19,6 +19,9 @@ from .naming import SINGLE_BRANCH, NamingConfig
 SITES_DIR = Path(__file__).parent / "sites"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TARGET_KEYS = ("mq", "job_conf", "destinations", "users")
+# How byoc-sync knows who owns an endpoint: by e-mail (TPV users.yml keys) or by Galaxy user id (a file only
+# byoc-sync reads, routing by a fixed TPV rule). See docs/routing-by-user-id.md.
+OWNER_KEYS = ("email", "galaxy_id")
 
 
 class ConfigError(ValueError):
@@ -56,6 +59,9 @@ def _clash(pattern: str, ref: str) -> str | None:
     return f"the BYOC name {name!r}" if name else None
 
 
+VAULT_FORMATS = ("file", "inline")
+
+
 @dataclass(frozen=True)
 class TargetSpec:
     key: str
@@ -77,7 +83,11 @@ class SiteConfig:
     targets: dict[str, TargetSpec]
     vault_file: str
     user_preferences_file: str | None = None
+    owner_key: str = "email"
     source: str = field(default="", compare=False)
+    vault_format: str = "file"  # "file": the whole file is a vault; "inline": plain YAML with !vault values
+    vault_id: str | None = None  # vault id for new inline values (default: the id of the existing ones)
+    vault_anchor: str = r"^rabbitmq_password_"  # new values go after the last variable matching this regex
 
     def __post_init__(self) -> None:
         # Runs again on dataclasses.replace (the --base-branch override).
@@ -102,6 +112,13 @@ class SiteConfig:
                 )
         if self.base_branch == SINGLE_BRANCH or self.base_branch.startswith(SINGLE_BRANCH + "/"):
             raise ConfigError(f"{where}base_branch {self.base_branch!r} clashes with the --single-pr branch")
+        if self.owner_key not in OWNER_KEYS:
+            raise ConfigError(f"{where}owner_key must be one of {', '.join(OWNER_KEYS)}, got {self.owner_key!r}")
+        users_id = self.targets["users"].id if "users" in self.targets else None
+        if self.owner_key == "galaxy_id" and users_id != "owner_key":
+            raise ConfigError(f"{where}with owner_key: galaxy_id, targets.users.id must be owner_key")
+        if self.owner_key == "email" and users_id not in (None, "email_key", "owner_key"):
+            raise ConfigError(f"{where}targets.users.id must be email_key or owner_key")
 
     @staticmethod
     def builtin_path(name: str) -> Path:
@@ -133,8 +150,11 @@ class SiteConfig:
             targets[key] = TargetSpec(
                 key=key, **{k: spec[k] for k in ("file", "path", "id", "template", "anchor")}, field=spec.get("field")
             )
-        if not (raw.get("vault") or {}).get("file"):
+        vault = raw.get("vault") or {}
+        if not vault.get("file"):
             raise ConfigError(f"{source}: vault.file is missing")
+        if vault.get("format", "file") not in VAULT_FORMATS:
+            raise ConfigError(f"{source}: vault.format must be one of {', '.join(VAULT_FORMATS)}")
         templates = raw.get("templates", "eu")
         templates_dir = TEMPLATES_DIR / templates if (TEMPLATES_DIR / templates).is_dir() else base / templates
         if not templates_dir.is_dir():
@@ -150,7 +170,11 @@ class SiteConfig:
             site=dict(raw.get("site") or {}),
             naming=naming,
             targets=targets,
-            vault_file=raw["vault"]["file"],
+            vault_file=vault["file"],
+            vault_format=vault.get("format", "file"),
+            vault_id=vault.get("vault_id"),
+            vault_anchor=vault.get("anchor", r"^rabbitmq_password_"),
             user_preferences_file=raw.get("user_preferences_file"),
+            owner_key=raw.get("owner_key", "email"),
             source=source,
         )

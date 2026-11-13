@@ -68,6 +68,19 @@ SELECT COALESCE(json_agg(t ORDER BY t.id), '[]'::json) FROM (
 """.strip()
 
 
+def lookup_id_sql(galaxy_id: str) -> str:
+    if not galaxy_id.isdigit():
+        raise GxadminError(f"cannot look up user id {galaxy_id!r}: gxadmin reports database ids (digits)")
+    return f"""
+SELECT COALESCE(json_agg(t ORDER BY t.id), '[]'::json) FROM (
+    SELECT {_USER_COLUMNS}
+    FROM galaxy_user u
+    LEFT JOIN ({_NEWEST_PREFERENCES}) newest ON newest.user_id = u.id
+    WHERE u.id = {int(galaxy_id)}
+) t
+""".strip()
+
+
 class GxadminSource:
     def __init__(self, cmd: list[str], section: str = SECTION, timeout: int = 600):
         self.cmd = list(cmd)
@@ -109,7 +122,7 @@ class GxadminSource:
             if prefs is None:
                 if result is None:
                     raise GxadminError(f"{email}: extra preferences are not valid JSON")
-                result.unreadable.add(email)
+                result.unreadable.update(k for k in (email, str(row.get("id") or "")) if k)
                 result.errors.append(f"{email}: extra preferences are not valid JSON")
                 return None
         return UserRecord(
@@ -135,6 +148,12 @@ class GxadminSource:
         rows = self._rows(lookup_sql(email))
         for row in rows:
             if row.get("email") == email:
+                return self._record(row, None)
+        return None
+
+    def lookup_id(self, galaxy_id: str) -> UserRecord | None:
+        for row in self._rows(lookup_id_sql(galaxy_id)):
+            if str(row.get("id")) == galaxy_id:
                 return self._record(row, None)
         return None
 
