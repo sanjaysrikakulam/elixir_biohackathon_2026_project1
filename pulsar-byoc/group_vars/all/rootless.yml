@@ -1,0 +1,36 @@
+---
+# HPC clusters without root (rootless.yml): Pulsar runs inside a batch job
+
+# Pulsar, its configuration and the job script; must be visible from the compute nodes
+pulsar_job_dir: "{{ ansible_env.HOME }}/pulsar-byoc"
+# Staging and Pulsar's state on the compute node's local disk; the BYOC form's nfs_path
+pulsar_job_local_dir: "/tmp/{{ pulsar_endpoint_name }}"
+
+# slurm (sbatch) or pbs (qsub)
+pulsar_job_scheduler: slurm
+pulsar_job_cores: 4
+pulsar_job_mem_gb: 16
+# HH:MM:SS
+pulsar_job_walltime: "24:00:00"
+# Extra scheduler lines for the job script, e.g. "#SBATCH --partition=batch"
+pulsar_job_options: []
+# Pulsar does not count cores: with one job at a time, a Galaxy job can use all of them
+pulsar_job_concurrent_jobs: 1
+# Submit the next job before this one ends; touch <pulsar_job_dir>/stop to end the chain
+pulsar_job_resubmit: false
+pulsar_job_python: python3
+
+pulsar_job_submit_command: "{{ 'sbatch' if pulsar_job_scheduler == 'slurm' else 'qsub' }}"
+pulsar_job_dependency_option: >-
+  {{ '--dependency=afterany:$SLURM_JOB_ID' if pulsar_job_scheduler == 'slurm'
+     else '-W depend=afterany:$PBS_JOBID' }}
+
+pulsar_job_app_config: >-
+  {{ pulsar_base_config
+     | combine({
+         'staging_directory': pulsar_job_local_dir ~ '/staging',
+         'persistence_directory': pulsar_job_local_dir ~ '/persisted_data',
+         'managers': {pulsar_manager_name: {'type': 'queued_python',
+                                            'num_concurrent_jobs': pulsar_job_concurrent_jobs | int}
+                                           | combine(pulsar_staging_retries)}})
+     | combine(pulsar_relay_config if pulsar_connection == 'relay' else {}) }}

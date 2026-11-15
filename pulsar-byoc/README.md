@@ -103,6 +103,31 @@ ansible-playbook site.yml -e @secrets.yml -e pulsar_scheduler=slurm -e pulsar_co
 
 With SLURM, `slurm-drmaa` comes from the Galaxy package source and is built against the distribution's SLURM. A cluster that runs a different SLURM version may need its own `slurm-drmaa` build; set `pulsar_drmaa_library_path` to it.
 
+## HPC clusters without root
+
+On a shared HPC cluster the user has no root, no systemd and no long-running services on the login nodes. `rootless.yml` sets up Pulsar there as the user's own software, and Pulsar runs inside a batch job. The Galaxy jobs run on the same node as that batch job, so they use the cores and memory the user asked for in it.
+
+The playbook runs as the user on one login node (group `hpc`) and needs no `sudo`. It installs Pulsar in a Python virtual environment in `pulsar_job_dir`, writes Pulsar's configuration with the queue or relay password (readable only by the user), writes the job script `pulsar-job.sh`, and prints the values for the Galaxy BYOC form. It does not submit the job: the user starts Pulsar with `sbatch` or `qsub` once the Galaxy admins have created the endpoint. Pulsar stops for good when it starts before its RabbitMQ account exists.
+
+Pulsar stages each Galaxy job on the node's local disk, in `pulsar_job_local_dir` (`/tmp/<name>` by default). That path is the `nfs_path` in the BYOC form. Containers come from `/cvmfs/singularity.galaxyproject.org` and reference data from `/cvmfs/data.galaxyproject.org`, so the cluster needs CVMFS with those repositories on its compute nodes, and `apptainer` or `singularity`.
+
+Pulsar stops 10 minutes before the job's walltime ends. A Galaxy job still running then is lost. With `pulsar_job_resubmit=true` each job submits the next one, which starts when the current one ends. Create the file `stop` in `pulsar_job_dir` to end the chain: the next job then exits without starting Pulsar. Ask the cluster's admins before running a chain all the time.
+
+Pulsar does not count cores, so by default it runs one Galaxy job at a time (`pulsar_job_concurrent_jobs`). The limits in the BYOC form are the job's cores and 90% of its memory.
+
+For example, on the HPC-UGent Tier-2 clusters (PBS-style `qsub` in front of Slurm), with the host `login.hpc.ugent.be` under `[hpc]` in the inventory:
+
+```bash
+ansible-playbook rootless.yml -e @secrets.yml -e pulsar_job_scheduler=pbs \
+  -e 'pulsar_job_dir={{ ansible_env.VSC_DATA }}/pulsar-byoc' \
+  -e pulsar_job_cores=4 -e pulsar_job_mem_gb=16 -e pulsar_job_walltime=24:00:00
+# then, on the login node, once the endpoint exists:
+module swap cluster/donphan
+qsub $VSC_DATA/pulsar-byoc/pulsar-job.sh
+```
+
+The other settings are in `group_vars/all/rootless.yml`.
+
 ## Tested platforms
 
 Both platforms below ran the full playbook with SLURM on a single VM (Ubuntu 22.04). A test job ran as the `pulsar` user and wrote to the shared staging directory. The connection to a real Galaxy has not been tested yet.
@@ -111,6 +136,7 @@ Both platforms below ran the full playbook with SLURM on a single VM (Ubuntu 22.
 | --- | --- | --- | --- |
 | SURF Research Cloud | plain Ubuntu 22.04 workspace, 4 cores, 32 GB | `ssh <SRAM username>@<workspace IP>`; members of the CO admin group can `sudo` without a password | SLURM, CVMFS, Apptainer and Pulsar (relay mode) running |
 | de.NBI SimpleVM | "de.NBI default", 2 cores, 4 GB | `ssh -p <port> ubuntu@<gateway>`; set `ansible_port` in the inventory | SLURM, CVMFS, Apptainer and Pulsar (RabbitMQ mode) running |
+| HPC-UGent Tier-2 (VSC), `rootless.yml` | batch job on the donphan cluster, 4 cores, 16 GB, Rocky Linux 9 | `ssh <VSC id>@login.hpc.ugent.be` | Pulsar (RabbitMQ mode) connected to test.usegalaxy.be from the job; Show beginning and BWA-MEM (container and index from CVMFS) ran; the job resubmitted itself |
 
 [`deployments/`](deployments/) has the inventories, variables and commands we used.
 

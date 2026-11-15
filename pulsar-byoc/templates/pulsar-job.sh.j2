@@ -1,0 +1,43 @@
+#!/bin/bash
+{% if pulsar_job_scheduler == 'slurm' %}
+#SBATCH --job-name=pulsar-{{ pulsar_endpoint_name }}
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task={{ pulsar_job_cores }}
+#SBATCH --mem={{ pulsar_job_mem_gb }}G
+#SBATCH --time={{ pulsar_job_walltime }}
+#SBATCH --output={{ pulsar_job_dir }}/logs/pulsar-%j.log
+{% else %}
+#PBS -N pulsar-{{ pulsar_endpoint_name }}
+#PBS -l nodes=1:ppn={{ pulsar_job_cores }}
+#PBS -l mem={{ pulsar_job_mem_gb }}gb
+#PBS -l walltime={{ pulsar_job_walltime }}
+#PBS -j oe
+{% endif %}
+{% for line in pulsar_job_options %}
+{{ line }}
+{% endfor %}
+# Pulsar for the Galaxy BYOC endpoint {{ pulsar_endpoint_name }}, running inside this job.
+# Written by pulsar-byoc's rootless.yml.
+set -eu
+dir={{ pulsar_job_dir }}
+local={{ pulsar_job_local_dir }}
+cd "$dir"
+
+if [ -e "$dir/stop" ]; then
+  echo "$dir/stop exists, not starting Pulsar"
+  exit 0
+fi
+{% if pulsar_job_resubmit %}
+# The next job starts when this one ends.
+{{ pulsar_job_submit_command }} {{ pulsar_job_dependency_option }} "$dir/pulsar-job.sh"
+{% endif %}
+
+mkdir -p "$local/staging" "$local/persisted_data"
+export PATH="$dir/bin:$PATH"
+
+echo "Pulsar {{ pulsar_endpoint_name }} on $(hostname) from $(date)"
+{% set t = pulsar_job_walltime.split(':') %}
+# Stop 10 minutes before the walltime ends.
+timeout {{ [t[0] | int * 3600 + t[1] | int * 60 + t[2] | int - 600, 600] | max }} \
+  venv/bin/pulsar-main --config_dir "$dir" --app_conf_path "$dir/app.yml" || true
+echo "Pulsar stopped at $(date)"
